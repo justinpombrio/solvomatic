@@ -2,7 +2,7 @@
 
 Some puzzles ask from you a spark of insight, or a poetic interpretation.
 
-For all the others, there's solv-o-matic.
+For the others, there's solv-o-matic.
 
 _Solv-o-matic is pre-alpha software. It's likely to contain bugs, and its
 interface may change dramatically at any moment._
@@ -12,29 +12,24 @@ interface may change dramatically at any moment._
 Solv-o-matic is a constraint solver. You give it variables and constraints, then
 ask it to solve the constraints for you.
 
-It solves them pretty much the same way a dumb human would. It keeps a list of
-possible values for each variable (or set of variables), and repeatedly checks
-every possible value against every constraint and crosses off the ones that are
-eliminated. It remembers the set of possibilities as a cross product of unions
-of tuples. Like one does.
-
 There's a small number of built in constraint types, but they're pretty
 powerful. They are:
 
 - `Sum`: some variables sum to a constant.
 - `Prod`: some variables multiply to a constant. The variables must be
   non-negative!
-- `Permutation`: the values of some variables are a permutation of a fixed sequence. For
-  example, Sudoku has the bag constraint that the first row is a permutation of
-  `1..=9`.
+- `Permutation`: the values of some variables are a permutation of a fixed
+  sequence. For example, Sudoku has the permutation constraint that the first
+  row is a permutation of `1..=9`.
 - `Seq`: the values of some variables in order are present in a list of allowed
   sequences. For example, in the constraint
   `Seq::word_list_file("/usr/share/dict/words", 4)`, the values are letters and
   the allowed sequences are all strings of length 4 from
   `/usr/share/dict/words`.
-- `Pred`: arbitrary predicate over some variables. This can express everything
-  the above constraints can, but is much slower. Only use it for constraints
-  that can't be expressed in other ways.
+- `Pred`: an arbitrary predicate over some variables holds. You supply a function
+  that returns true or false. This can express everything the above constraints
+  can, but is much slower. Only use it for constraints that can't be expressed
+  in other ways.
 
 When needed, you can get a bit more power using `mapped_constraint` to modify
 the value of each variable _before_ it gets passed into the constraint. For
@@ -43,6 +38,13 @@ example, if you wanted the constraint that `A + 2B + 3C = 10`, you could use
 passing it to the constraint `Sum::new(10)`.
 
 For more details on everything, read the docs `cargo doc --open`.
+
+## How does it work?
+
+It solves puzzles much the same way a human puzzler would. It keeps track of
+possible states as a cross product of unions of tuples, and repeatedly tries
+merging various pairs of cross products and filtering tuples based on
+constraints using lattice equations. Like one does.
 
 ## Example
 
@@ -193,6 +195,7 @@ Finally we tell it to solve! If `solve()` fails, it will produce an
     solver.solve().unwrap();
     println!("{}", solver.table());
 }
+```
 
 And it spits out the possible solutions:
 

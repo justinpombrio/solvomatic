@@ -141,7 +141,7 @@ fn test_seq_pair() {
 }
 
 #[test]
-fn test_ordbag() {
+fn test_permutation() {
     use YesNoMaybe::{Maybe, No, Yes};
 
     let s = Permutation::new([1, 2, 3, 3]);
