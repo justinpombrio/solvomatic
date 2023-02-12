@@ -24,7 +24,7 @@ powerful. They are:
 - `Sum`: some variables sum to a constant.
 - `Prod`: some variables multiply to a constant. The variables must be
   non-negative!
-- `Bag`: the values of some variables are a permutation of a fixed sequence. For
+- `Permutation`: the values of some variables are a permutation of a fixed sequence. For
   example, Sudoku has the bag constraint that the first row is a permutation of
   `1..=9`.
 - `Seq`: the values of some variables in order are present in a list of allowed
@@ -46,44 +46,67 @@ For more details on everything, read the docs `cargo doc --open`.
 
 ## Example
 
-Here's a tiny example. We're going to find all two digits numbers `AB` such that
-`A + B = 3`. First some imports:
+Here's an example. We'll solve a (supposedly) hard Sudoku. First some imports:
 
-```rust
-use solvomatic::constraints::Sum;
+```
+//! Solve a hard Sudoku
+
+use solvomatic::constraints::{Permutation, Pred};
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 ```
 
-First we declare a name for your puzzle state. As an empty struct. Yeah, I
-know, it's kinda weird, just roll with it.
+First we declare a name for the puzzle state. Let's use a `u8` for each digit in
+the Sudoku. But actually an `Option<u8>`, because it's a rule that not all
+values might be known. So we'll one a 9x9 matrix of `Option<u8>` for the whole
+thing:
 
 ```
-#[derive(Debug)]
-struct Three;
+#[derive(Debug, Default)]
+struct Sudoku([[Option<u8>; 9]; 9]);
 ```
 
-Next we declare:
+Next we declare how `Sudoku` implements a puzzle `State`. This requires:
 
-- The `Var` type (here `char`, since it will be `'A'` or `'B'`)
-- The `Value` type (a `u8` will do, since it's a single digit)
-- A method for displaying states. A state might not have a value for `A` or `B`;
-  we'll write `_` in that case.
+- The `Var` type, here `(usize, usize)` as a (row, col) index to identify a
+  cell.
+- The `Value` type, here a `u8` for each cell.
+- A `set` function for setting the value of one cell.
 
 ```
-impl State for Three {
-    type Var = char;
+impl State for Sudoku {
+    type Var = (usize, usize);
     type Value = u8;
 
-    fn display(f: &mut String, state: &HashMap<char, u8>) -> fmt::Result {
-        use std::fmt::Write;
+    fn set(&mut self, var: (usize, usize), val: u8) {
+        let (i, j) = var;
+        self.0[i - 1][j - 1] = Some(val);
+    }
+}
+```
 
-        for letter in ['A', 'B'] {
-            if let Some(digit) = state.get(&letter) {
-                write!(f, "{}", digit)?;
-            } else {
-                write!(f, "_")?;
+The last thing that our `State` needs is to implement `Display`, so that you can
+see the board. We'll print `_` for unknown cells:
+
+```
+impl fmt::Display for Sudoku {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "+---+---+---+")?;
+        for (i, row) in self.0.iter().enumerate() {
+            write!(f, "|")?;
+            for (j, cell) in row.iter().enumerate() {
+                if let Some(n) = cell {
+                    write!(f, "{:1}", n)?;
+                } else {
+                    write!(f, "_")?;
+                }
+                if j % 3 == 2 {
+                    write!(f, "|")?;
+                }
+            }
+            writeln!(f)?;
+            if i % 3 == 2 {
+                writeln!(f, "+---+---+---+")?;
             }
         }
         Ok(())
@@ -91,32 +114,112 @@ impl State for Three {
 }
 ```
 
-Finally we make a new solver, specifying the name of our state struc, tell it
-the possible values of each variable (`A` and `B`), add the constraint that `A +
-B = 3`, and tell it to solve! If `solve()` fails, it will produce an
-`Unsatisfiable` error. Otherwise, we print the answers in `solver.table()`.
+Another requirement for `State` is that it implements `Debug` and `Default`. We
+`derive`d those above.
+
+Now let's make a Sudoku solver!
 
 ```
 fn main() {
-    let mut solver = Solvomatic::<Three>::new();
+    println!("Solving a hard sudoku.");
+    println!();
 
-    solver.var('A', 1..=9);
-    solver.var('B', 0..=9);
+    let mut solver = Solvomatic::<Sudoku>::new();
+```
 
-    solver.constraint(['A', 'B'], Sum::new(3));
+Set the allowed values for each cell, where a cell is identified by `(i, j`):
 
+```
+    // There are 81 cells. Each cell is a number 1..9
+    for i in 1..=9 {
+        for j in 1..=9 {
+            solver.var((i, j), 1..=9);
+        }
+    }
+```
+
+Set a constraint that each row, column, and 3x3 block is a permutation of the
+numbers 1..9:
+
+```
+    // Each row is a permutation of 1..9
+    for i in 1..=9 {
+        let row: [(usize, usize); 9] = std::array::from_fn(|j| (i, j + 1));
+        solver.constraint(row, Permutation::new(1..=9));
+    }
+
+    // Each col is a permutation of 1..9
+    for j in 1..=9 {
+        let col: [(usize, usize); 9] = std::array::from_fn(|i| (i + 1, j));
+        solver.constraint(col, Permutation::new(1..=9));
+    }
+
+    // Each 3x3 block is a permutation of 1..9
+    for block_i in 0..3 {
+        for block_j in 0..3 {
+            let mut block_cells = Vec::new();
+            for i in 1..=3 {
+                for j in 1..=3 {
+                    block_cells.push((block_i * 3 + i, block_j * 3 + j));
+                }
+            }
+            solver.constraint(block_cells, Permutation::new(1..=9));
+        }
+    }
+```
+
+Now set the constraints specific to this puzzle:
+
+```
+    // The starting config for this particular sudoku
+    // (row, col, num)
+    let prefilled: &[(usize, usize, u8)] = &[
+        (1, 3, 5), (2, 1, 6), (1, 4, 9), (2, 5, 5),
+        (2, 6, 3), (3, 4, 2), (1, 7, 4), (2, 7, 8),
+        (3, 9, 3), (4, 5, 9), (5, 1, 2), (5, 8, 4),
+        (6, 3, 4), (6, 5, 8), (6, 6, 5), (6, 9, 1),
+        (7, 3, 2), (7, 5, 4), (7, 6, 1), (7, 9, 8),
+        (8, 2, 7), (8, 7, 6), (9, 4, 3),
+    ];
+    for (i, j, n) in prefilled {
+        solver.constraint([(*i, *j)], Pred::new(|[x]| *x == *n));
+    }
+```
+
+Finally we tell it to solve! If `solve()` fails, it will produce an
+`Unsatisfiable` error. Otherwise, we print the answers in `solver.table()`.
+
+```
     solver.solve().unwrap();
     println!("{}", solver.table());
 }
-```
 
 And it spits out the possible solutions:
 
 ```
-Step  0: size =    6 possibilities = 9                                                                                                                         
-time: 0ms                                                                                                                                                      
-State is one of 3:                                                                                                                                             
-    30    21    12
+solvomatic> cargo run --release --example sudoku
+   Compiling solvomatic v0.3.0 (/home/justin/git/solvomatic)
+    Finished release [optimized] target(s) in 2.32s
+     Running `target/release/examples/sudoku`
+Solving a hard sudoku.
+
+Step  0: size =  139 possibilities = 160489808068608
+  elapsed:   347ms
+time: 362ms
+State is one of 1:
+    +---+---+---+
+    |325|918|467|
+    |649|753|812|
+    |817|264|593|
+    +---+---+---+
+    |531|492|786|
+    |286|137|945|
+    |794|685|231|
+    +---+---+---+
+    |962|541|378|
+    |173|829|654|
+    |458|376|129|
+    +---+---+---+
 ```
 
 There are lots more examples! They're hidden where you'd least expect them, in

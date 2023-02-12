@@ -1,39 +1,39 @@
-//! Find a hard Sudoku
+//! Solve a hard Sudoku
 
-use solvomatic::constraints::{Bag, Pred};
+use solvomatic::constraints::{Permutation, Pred};
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug)]
-struct Sudoku;
+#[derive(Debug, Default)]
+struct Sudoku([[Option<u8>; 9]; 9]);
 
 impl State for Sudoku {
-    type Var = (i8, i8);
+    type Var = (usize, usize);
     type Value = u8;
 
-    fn display(f: &mut String, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
-        use std::fmt::Write;
+    fn set(&mut self, var: (usize, usize), val: u8) {
+        let (i, j) = var;
+        self.0[i - 1][j - 1] = Some(val);
+    }
+}
 
-        fn show_cell(f: &mut String, i: i8, j: i8, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
-            if let Some(n) = state.get(&(i, j)) {
-                write!(f, "{:1}", n)
-            } else {
-                write!(f, "_")
-            }
-        }
-
+impl fmt::Display for Sudoku {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "+---+---+---+")?;
-        for i in 1..=9 {
+        for (i, row) in self.0.iter().enumerate() {
             write!(f, "|")?;
-            for j in 1..=9 {
-                show_cell(f, i, j, state)?;
-                if j % 3 == 0 {
+            for (j, cell) in row.iter().enumerate() {
+                if let Some(n) = cell {
+                    write!(f, "{:1}", n)?;
+                } else {
+                    write!(f, "_")?;
+                }
+                if j % 3 == 2 {
                     write!(f, "|")?;
                 }
             }
             writeln!(f)?;
-            if i % 3 == 0 {
+            if i % 3 == 2 {
                 writeln!(f, "+---+---+---+")?;
             }
         }
@@ -48,29 +48,23 @@ fn main() {
     let mut solver = Solvomatic::<Sudoku>::new();
     solver.config().log_elapsed = true;
 
-    // There are 81 cells
-    let mut all_cells = Vec::new();
+    // There are 81 cells. Each cell is a number 1..9
     for i in 1..=9 {
         for j in 1..=9 {
-            all_cells.push((i, j));
+            solver.var((i, j), 1..=9);
         }
-    }
-
-    // Each cell is a number 1..9
-    for cell in &all_cells {
-        solver.var(*cell, 1..=9);
     }
 
     // Each row is a permutation of 1..9
     for i in 1..=9 {
-        let row: [(i8, i8); 9] = std::array::from_fn(|j| (i, j as i8 + 1));
-        solver.constraint(row, Bag::new(1..=9));
+        let row: [(usize, usize); 9] = std::array::from_fn(|j| (i, j + 1));
+        solver.constraint(row, Permutation::new(1..=9));
     }
 
     // Each col is a permutation of 1..9
     for j in 1..=9 {
-        let col: [(i8, i8); 9] = std::array::from_fn(|i| (i as i8 + 1, j));
-        solver.constraint(col, Bag::new(1..=9));
+        let col: [(usize, usize); 9] = std::array::from_fn(|i| (i + 1, j));
+        solver.constraint(col, Permutation::new(1..=9));
     }
 
     // Each 3x3 block is a permutation of 1..9
@@ -82,13 +76,12 @@ fn main() {
                     block_cells.push((block_i * 3 + i, block_j * 3 + j));
                 }
             }
-            solver.constraint(block_cells, Bag::new(1..=9));
+            solver.constraint(block_cells, Permutation::new(1..=9));
         }
     }
 
-    // The starting config for this particular sudoku
-    // (row, col, num)
-    let fixed: &[(i8, i8, u8)] = &[
+    // The starting config for this particular sudoku (row, col, num)
+    let prefilled: &[(usize, usize, u8)] = &[
         (1, 3, 5),
         (2, 1, 6),
         (1, 4, 9),
@@ -113,7 +106,7 @@ fn main() {
         (8, 7, 6),
         (9, 4, 3),
     ];
-    for (i, j, n) in fixed {
+    for (i, j, n) in prefilled {
         solver.constraint([(*i, *j)], Pred::new(|[x]| *x == *n));
     }
 

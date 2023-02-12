@@ -2,29 +2,28 @@
 
 use solvomatic::constraints::{Pred, Seq};
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug)]
-struct Palindrome;
+#[derive(Debug, Default)]
+struct Palindrome([Option<char>; 6]);
 
 impl State for Palindrome {
     type Var = usize;
     type Value = char;
 
-    fn display(f: &mut String, state: &HashMap<usize, char>) -> fmt::Result {
-        use std::fmt::Write;
+    fn set(&mut self, var: usize, val: char) {
+        self.0[var] = Some(val);
+    }
+}
 
-        fn show_cell(f: &mut String, i: usize, state: &HashMap<usize, char>) -> fmt::Result {
-            if let Some(ch) = state.get(&i) {
-                write!(f, "{}", ch)
+impl fmt::Display for Palindrome {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for letter in &self.0 {
+            if let Some(letter) = letter {
+                write!(f, "{}", letter)?;
             } else {
-                write!(f, "_")
+                write!(f, "_")?;
             }
-        }
-
-        for i in 0..6 {
-            show_cell(f, i, state)?;
         }
         Ok(())
     }

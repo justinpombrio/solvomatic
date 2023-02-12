@@ -5,22 +5,22 @@ use std::hash::Hash;
 
 /// The constraint that `{X1, ..., Xn} = expected`
 #[derive(Debug, Clone)]
-pub struct Bag<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
     expected: Vec<T>,
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Bag<T> {
-    pub fn new(expected: impl IntoIterator<Item = T>) -> Bag<T> {
-        Bag {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
+    pub fn new(expected: impl IntoIterator<Item = T>) -> Permutation<T> {
+        Permutation {
             expected: expected.into_iter().collect::<Vec<_>>(),
         }
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Bag<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Permutation<T> {
     type Set = (Vec<T>, Vec<T>);
 
-    const NAME: &'static str = "Bag";
+    const NAME: &'static str = "Permutation";
 
     fn singleton(&self, _index: usize, elem: T) -> Self::Set {
         (vec![elem.clone()], vec![elem])
@@ -144,7 +144,7 @@ fn test_seq_pair() {
 fn test_ordbag() {
     use YesNoMaybe::{Maybe, No, Yes};
 
-    let s = Bag::new([1, 2, 3, 3]);
+    let s = Permutation::new([1, 2, 3, 3]);
 
     let one = || s.singleton(0, 1);
     let two = || s.singleton(0, 2);

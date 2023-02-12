@@ -2,30 +2,37 @@
 
 use solvomatic::constraints::{Pred, Seq};
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 
+/// An NxN word square
 #[derive(Debug)]
-struct WordSquare;
+struct WordSquare<const N: usize>([[Option<char>; N]; N]);
 
-impl State for WordSquare {
-    type Var = (i8, i8);
+impl<const N: usize> Default for WordSquare<N> {
+    fn default() -> WordSquare<N> {
+        WordSquare([[None; N]; N])
+    }
+}
+
+impl<const N: usize> State for WordSquare<N> {
+    type Var = (usize, usize);
     type Value = char;
 
-    fn display(f: &mut String, state: &HashMap<(i8, i8), char>) -> fmt::Result {
-        use std::fmt::Write;
+    fn set(&mut self, var: (usize, usize), letter: char) {
+        let (i, j) = var;
+        self.0[i][j] = Some(letter);
+    }
+}
 
-        fn show_cell(f: &mut String, i: i8, j: i8, state: &HashMap<(i8, i8), char>) -> fmt::Result {
-            if let Some(n) = state.get(&(i, j)) {
-                write!(f, "{}", n)
-            } else {
-                write!(f, "_")
-            }
-        }
-
-        for i in 0..4 {
-            for j in 0..4 {
-                show_cell(f, i, j, state)?;
+impl<const N: usize> fmt::Display for WordSquare<N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for row in &self.0 {
+            for cell in row {
+                if let Some(letter) = cell {
+                    write!(f, "{}", letter.to_uppercase())?;
+                } else {
+                    write!(f, "_")?;
+                }
             }
             writeln!(f)?;
         }
@@ -37,7 +44,7 @@ fn main() {
     println!("Finding all 4x4 word squares whose diagonals are vowels.");
     println!();
 
-    let mut solver = Solvomatic::<WordSquare>::new();
+    let mut solver = Solvomatic::<WordSquare<4>>::new();
     solver.config().log_completed = true;
 
     let mut all_cells = Vec::new();

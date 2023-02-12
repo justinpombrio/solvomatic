@@ -2,27 +2,35 @@
 
 use solvomatic::constraints::Sum;
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug)]
-struct Three;
+#[derive(Debug, Default)]
+struct Three {
+    a: Option<u8>,
+    b: Option<u8>,
+}
 
 impl State for Three {
     type Var = char;
     type Value = u8;
 
-    fn display(f: &mut String, state: &HashMap<char, u8>) -> fmt::Result {
-        use std::fmt::Write;
-
-        for letter in ['A', 'B'] {
-            if let Some(digit) = state.get(&letter) {
-                write!(f, "{}", digit)?;
-            } else {
-                write!(f, "_")?;
-            }
+    fn set(&mut self, var: char, val: u8) {
+        match var {
+            'A' => self.a = Some(val),
+            'B' => self.b = Some(val),
+            _ => unreachable!(),
         }
-        Ok(())
+    }
+}
+
+impl fmt::Display for Three {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (self.a, self.b) {
+            (None, None) => write!(f, "__"),
+            (Some(a), None) => write!(f, "{}_", a),
+            (None, Some(b)) => write!(f, "_{}", b),
+            (Some(a), Some(b)) => write!(f, "{}{}", a, b),
+        }
     }
 }
 

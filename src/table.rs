@@ -1,5 +1,5 @@
 use crate::constraints::{Constraint, YesNoMaybe};
-use crate::state::{display_states, State};
+use crate::state::{State, StateSet};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -370,12 +370,12 @@ impl<S: State> Clone for Table<S> {
 
 impl<S: State> fmt::Display for Table<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tuple_to_state = |header: &[S::Var], tuple: &[S::Value]| -> HashMap<S::Var, S::Value> {
-            let mut map = HashMap::new();
+        let tuple_to_state = |header: &[S::Var], tuple: &[S::Value]| -> S {
+            let mut state = S::default();
             for (i, x) in header.iter().enumerate() {
-                map.insert(x.clone(), tuple[i].clone());
+                state.set(x.clone(), tuple[i].clone());
             }
-            map
+            state
         };
 
         let show_section = |f: &mut fmt::Formatter, section: &Section<S>| -> fmt::Result {
@@ -387,8 +387,7 @@ impl<S: State> fmt::Display for Table<S> {
                     states.push(tuple_to_state(&section.header, &tuple));
                 }
             }
-
-            display_states::<S>(f, states)
+            write!(f, "{}", StateSet(states))
         };
 
         let mut sections = self.sections.iter();

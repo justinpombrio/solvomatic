@@ -3,27 +3,48 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 /// The constraint that `pred(X1, ..., Xn)` holds.
-pub struct Pred<const N: usize, T: Debug + PartialEq + Clone + Sized + 'static> {
-    pred: Box<dyn Fn(&[T; N]) -> bool>,
+pub struct Pred<T: Debug + PartialEq + Clone + Sized + 'static> {
+    num_params: usize,
+    pred: Box<dyn Fn(&[T]) -> bool>,
     _phantom: PhantomData<T>,
 }
 
-impl<const N: usize, T: Debug + PartialEq + Clone + Sized + 'static> Pred<N, T> {
-    pub fn new(pred: impl Fn(&[T; N]) -> bool + 'static) -> Pred<N, T> {
+impl<T: Debug + PartialEq + Clone + Sized + 'static> Pred<T> {
+    pub fn new<const N: usize>(pred: impl Fn(&[T; N]) -> bool + 'static) -> Pred<T> {
+        let pred_generic = move |array: &[T]| -> bool {
+            match TryInto::<&[T; N]>::try_into(array) {
+                Ok(array) => pred(array),
+                Err(msg) => panic!(
+                    "Pred: wrong number of arguments in predicate function! {}",
+                    msg
+                ),
+            }
+        };
         Pred {
+            num_params: N,
+            pred: Box::new(pred_generic),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Use this instead of `new` if you don't statically know the number of params the predicate
+    /// will take.
+    pub fn new_with_len(len: usize, pred: impl Fn(&[T]) -> bool + 'static) -> Pred<T> {
+        Pred {
+            num_params: len,
             pred: Box::new(pred),
             _phantom: PhantomData,
         }
     }
 }
 
-impl<const N: usize, T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<N, T> {
+impl<T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<T> {
     const NAME: &'static str = "Pred";
 
-    type Set = [Option<T>; N];
+    type Set = Vec<Option<T>>;
 
     fn singleton(&self, index: usize, elem: T) -> Self::Set {
-        let mut result = std::array::from_fn(|_| None);
+        let mut result = vec![None; self.num_params];
         result[index] = Some(elem);
         result
     }
@@ -51,7 +72,9 @@ impl<const N: usize, T: Debug + PartialEq + Clone + Sized + 'static> Constraint<
     fn check(&self, set: Self::Set) -> YesNoMaybe {
         use YesNoMaybe::{Maybe, No, Yes};
 
-        if let Some(set) = unwrap_array(set) {
+        let unwrapped_set = set.into_iter().collect::<Option<Vec<T>>>();
+
+        if let Some(set) = unwrapped_set {
             if (self.pred)(&set) {
                 Yes
             } else {
@@ -61,15 +84,6 @@ impl<const N: usize, T: Debug + PartialEq + Clone + Sized + 'static> Constraint<
             Maybe
         }
     }
-}
-
-fn unwrap_array<const N: usize, T: Clone>(opt_array: [Option<T>; N]) -> Option<[T; N]> {
-    for elem in &opt_array {
-        if elem.is_none() {
-            return None;
-        }
-    }
-    Some(std::array::from_fn(|i| opt_array[i].clone().unwrap()))
 }
 
 #[test]
@@ -86,9 +100,9 @@ fn test_sum() {
         [Some(10), Some(20)]
     );
 
-    assert_eq!(s.check([None, None]), Maybe);
-    assert_eq!(s.check([Some(1), None]), Maybe);
-    assert_eq!(s.check([None, Some(1)]), Maybe);
-    assert_eq!(s.check([Some(1), Some(2)]), Yes);
-    assert_eq!(s.check([Some(2), Some(2)]), No);
+    assert_eq!(s.check(vec![None, None]), Maybe);
+    assert_eq!(s.check(vec![Some(1), None]), Maybe);
+    assert_eq!(s.check(vec![None, Some(1)]), Maybe);
+    assert_eq!(s.check(vec![Some(1), Some(2)]), Yes);
+    assert_eq!(s.check(vec![Some(2), Some(2)]), No);
 }

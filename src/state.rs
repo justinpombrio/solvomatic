@@ -1,44 +1,38 @@
-use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Display;
 use std::hash::Hash;
 
 const TEXT_BOX_PADDING: usize = 4;
 const TEXT_BOX_WIDTH: usize = 70;
 
-/// A state is a mapping from `State::Var` to `State::Value`.
-///
-/// This trait does not actually contain a state, it just declares the types for `Var` and `Value`.
-/// As such, you typically want to implement it as an empty struct: `struct MyState; ... impl State
-/// for MyState { ... }`.
-pub trait State: 'static {
+/// The state for some kind of puzzle. It maps `Var` to `Value`, and can be nicely `Display`ed.
+/// Importantly, not all `Var`s will have a `Value`. The `Default` state should have `None` for all
+/// `Var`s.
+pub trait State: Display + Default + 'static {
     type Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
     type Value: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
 
-    /// Print the state nicely for debugging. None all `Var`s will be present; those that aren't
-    /// should be printed as a "blank" (of some sort).
-    fn display(f: &mut String, state: &HashMap<Self::Var, Self::Value>) -> fmt::Result {
-        use fmt::Write;
-        write!(f, "{:#?}", state)
-    }
+    fn set(&mut self, var: Self::Var, val: Self::Value);
 }
 
-pub fn display_states<S: State>(
-    f: &mut fmt::Formatter,
-    states: Vec<HashMap<S::Var, S::Value>>,
-) -> fmt::Result {
-    let mut text_box = TextBox::new(TEXT_BOX_WIDTH);
-    for state in states {
-        let mut string = String::new();
-        S::display(&mut string, &state)?;
-        text_box.append(string);
+/// A bunch of states. This type exists solely for its `Display` method, which will show all of its
+/// states, and will print put them side by side when they fit.
+pub struct StateSet<S: State>(pub Vec<S>);
+
+impl<S: State> Display for StateSet<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut text_box = TextBox::new(TEXT_BOX_WIDTH);
+        for state in &self.0 {
+            text_box.append(format!("{}", state));
+        }
+        for line in text_box.completed_lines {
+            writeln!(f, "{}", line)?;
+        }
+        for line in text_box.cur_lines {
+            writeln!(f, "{}", line)?;
+        }
+        Ok(())
     }
-    for line in text_box.completed_lines {
-        writeln!(f, "{}", line)?;
-    }
-    for line in text_box.cur_lines {
-        writeln!(f, "{}", line)?;
-    }
-    Ok(())
 }
 
 struct TextBox {

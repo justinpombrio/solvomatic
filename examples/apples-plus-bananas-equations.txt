@@ -1,0 +1,18 @@
+1 lemon
+1 banana 1 lemon
+1 broc 1 peach
+1 eggplant 1 grape
+1 apple 1 av 1 mango
+1 kiwi 1 pumpkin 1 tomato
+2 lemon 1 peach
+1 lemon 1 mango 1 pumpkin
+2 mango 1 pumpkin
+1 apple 1 kiwi 2 mango
+1 av 1 blueberry 2 mango 1 pumpkin
+4 blueberry 1 grape
+2 kiwi 1 lemon 1 pumpkin 1 tomato
+4 pumpkin 1 orange
+4 blueberry 1 grape 2 peach
+1 apple 2 eggplant 1 kiwi 1 lemon 3 tomato
+1 bean 1 blueberry 4 broc 2 grape 1 orange
+2 bean 1 broc 1 eggplant 7 grape

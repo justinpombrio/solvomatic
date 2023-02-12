@@ -1,31 +1,38 @@
 //! Find all 4x4 associative magic squares
 
-use solvomatic::constraints::{Bag, Pred, Sum};
+use solvomatic::constraints::{Permutation, Pred, Sum};
 use solvomatic::{Solvomatic, State};
-use std::collections::HashMap;
 use std::fmt;
 
+/// An NxN magic square.
 #[derive(Debug)]
-struct MagicSquare4;
+struct MagicSquare<const N: usize>([[Option<u8>; N]; N]);
 
-impl State for MagicSquare4 {
+impl<const N: usize> Default for MagicSquare<N> {
+    fn default() -> MagicSquare<N> {
+        MagicSquare([[None; N]; N])
+    }
+}
+
+impl<const N: usize> State for MagicSquare<N> {
     type Var = (i8, i8);
     type Value = u8;
 
-    fn display(f: &mut String, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
-        use std::fmt::Write;
+    fn set(&mut self, var: (i8, i8), val: u8) {
+        let (i, j) = var;
+        self.0[i as usize][j as usize] = Some(val);
+    }
+}
 
-        fn show_cell(f: &mut String, i: i8, j: i8, state: &HashMap<(i8, i8), u8>) -> fmt::Result {
-            if let Some(n) = state.get(&(i, j)) {
-                write!(f, "{:3}", n)
-            } else {
-                write!(f, "  _")
-            }
-        }
-
-        for i in 0..4 {
-            for j in 0..4 {
-                show_cell(f, i, j, state)?;
+impl<const N: usize> fmt::Display for MagicSquare<N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for i in 0..N {
+            for j in 0..N {
+                if let Some(n) = self.0[i][j] {
+                    write!(f, "{:3}", n)?;
+                } else {
+                    write!(f, "  _")?;
+                }
             }
             writeln!(f)?;
         }
@@ -37,7 +44,7 @@ fn main() {
     println!("Finding all associative 4x4 magic squares.");
     println!();
 
-    let mut solver = Solvomatic::<MagicSquare4>::new();
+    let mut solver = Solvomatic::<MagicSquare<4>>::new();
     solver.config().log_completed = true;
 
     let mut all_cells = Vec::new();
@@ -53,7 +60,7 @@ fn main() {
     }
 
     // The grid is a permutation of 1..16
-    solver.constraint(all_cells.iter().copied(), Bag::new(1..=16));
+    solver.constraint(all_cells.iter().copied(), Permutation::new(1..=16));
 
     // Each row sums to 34
     for i in 0..4 {
