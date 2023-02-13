@@ -9,8 +9,10 @@ interface may change dramatically at any moment._
 
 ## What is it
 
-Solv-o-matic is a constraint solver. You give it variables and constraints, then
-ask it to solve the constraints for you.
+Solv-o-matic is a constraint solver. You give it constraints like "the top row
+of this Sudoku consists of a permutation of the numbers 1-9" or "these five
+characters form a word from this word list" or "these numbers sum to a prime".
+It solves the constraints for you, or tells you they're unsatisfiable.
 
 There's a small number of built in constraint types, but they're pretty
 powerful. They are:
