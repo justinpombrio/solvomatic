@@ -15,6 +15,7 @@ impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> Sum<N> {
 }
 
 impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> Constraint<N> for Sum<N> {
+    /// (min, max)
     type Set = (N, N);
 
     const NAME: &'static str = "Sum";

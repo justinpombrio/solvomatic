@@ -18,6 +18,7 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
 }
 
 impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Permutation<T> {
+    /// (min_set, max_set)
     type Set = (Vec<T>, Vec<T>);
 
     const NAME: &'static str = "Permutation";

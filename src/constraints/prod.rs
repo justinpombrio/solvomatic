@@ -17,6 +17,7 @@ impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Prod<N> {
 }
 
 impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<N> {
+    /// (min, max)
     type Set = (N, N);
 
     const NAME: &'static str = "Prod";

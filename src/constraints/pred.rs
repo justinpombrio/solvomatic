@@ -2,7 +2,8 @@ use super::{Constraint, YesNoMaybe};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-/// The constraint that `pred(X1, ..., Xn)` holds.
+/// The constraint that `pred(X1, ..., Xn)` holds. This is an inefficient constraint:
+/// it won't be checked until _all_ of its elements are known.
 pub struct Pred<T: Debug + PartialEq + Clone + Sized + 'static> {
     num_params: usize,
     pred: Box<dyn Fn(&[T]) -> bool>,
@@ -29,7 +30,7 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Pred<T> {
 
     /// Use this instead of `new` if you don't statically know the number of params the predicate
     /// will take.
-    pub fn new_with_len(len: usize, pred: impl Fn(&[T]) -> bool + 'static) -> Pred<T> {
+    pub fn with_len(len: usize, pred: impl Fn(&[T]) -> bool + 'static) -> Pred<T> {
         Pred {
             num_params: len,
             pred: Box::new(pred),

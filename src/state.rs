@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 const TEXT_BOX_PADDING: usize = 4;
-const TEXT_BOX_WIDTH: usize = 70;
+const TEXT_BOX_WIDTH: usize = 90;
 
 /// The state for some kind of puzzle. It maps `Var` to `Value`, and can be nicely `Display`ed.
 /// Importantly, not all `Var`s will have a `Value`. The `Default` state should have `None` for all
