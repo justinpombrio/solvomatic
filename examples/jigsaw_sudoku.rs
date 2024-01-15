@@ -1,4 +1,4 @@
-//! Solver for MIT Mystery Hunt 2024 puzzle 'Jigsaw Sudoku'.
+//! Solver for the Sudokus in the MIT Mystery Hunt 2024 puzzle 'Jigsaw Sudoku'.
 //!
 //! https://mythstoryhunt.world/puzzles/jigsaw-sudoku
 //!
