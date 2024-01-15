@@ -73,7 +73,7 @@ fn main() {
         // - `fruits` are the parameters
         // - `counts[i]*n` multiplies the value of each fruit by how many times it appears in the quation
         // - `constraint` checks that the sum is prime
-        let constraint = Pred::new_with_len(fruits.len(), |array| is_prime(array.iter().sum()));
+        let constraint = Pred::with_len(fruits.len(), |array| is_prime(array.iter().sum()));
         solver.mapped_constraint(fruits, move |i, n| counts[i] * n, constraint)
     }
 
