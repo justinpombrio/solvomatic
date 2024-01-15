@@ -16,6 +16,7 @@ mod table;
 
 use constraints::Constraint;
 use std::default::Default;
+use std::fmt;
 use std::time::Instant;
 
 pub mod constraints;
@@ -174,6 +175,10 @@ impl<S: State> Solvomatic<S> {
             self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
         }
 
+        if self.config.log_states {
+            println!("{}", self.table);
+        }
+
         // Log how long it took
         if self.config.log_elapsed {
             let elapsed_time = start_time.elapsed().as_millis();
@@ -228,5 +233,18 @@ impl<S: State> Solvomatic<S> {
     /// The current table of possibilities.
     pub fn table(&self) -> &Table<S> {
         &self.table
+    }
+}
+
+impl<S: State> fmt::Display for Unsatisfiable<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "UNSATISFIABLE!")?;
+        writeln!(f, "State:\n{}", self.table)?;
+        write!(f, "Constraint {} on [", self.constraint)?;
+        for variable in &self.header {
+            write!(f, "{:?} ", variable)?;
+        }
+        writeln!(f, "]")?;
+        write!(f, "is unsatisfiable")
     }
 }
