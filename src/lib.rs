@@ -20,6 +20,7 @@ mod table;
 // - more constraints!
 // - testing!
 // - command line args, including `--log` that prints after each step
+// - skyscraper constraints
 
 use constraints::Constraint;
 use std::default::Default;
@@ -188,7 +189,15 @@ impl<S: State> Solvomatic<S> {
             }
 
             // Merge the two sections that minimize the resulting table size
-            self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
+            let mut tables = options.into_iter();
+            let mut best_table = tables.next().unwrap();
+            for table in tables {
+                if table.cost() < best_table.cost() {
+                    best_table = table;
+                }
+            }
+            self.table = best_table;
+            println!("merged: {:?}", self.table.sections[0].header);
         }
 
         // Log how long it took

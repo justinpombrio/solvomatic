@@ -154,7 +154,7 @@ impl<S: State> Table<S> {
     pub fn size(&self) -> u64 {
         let mut size = 0;
         for section in &self.sections {
-            size += section.tuples.len() as u64;
+            size += section.tuples.len() as u64 - 1;
         }
         size
     }
@@ -166,6 +166,13 @@ impl<S: State> Table<S> {
             possibilities *= section.tuples.len() as u128;
         }
         possibilities
+    }
+
+    /// A heuristic for how "far from a solution" this table is.
+    pub fn cost(&self) -> f64 {
+        // Doesn't seem to be a big difference between size vs. poss vs. size^2 * poss
+        // Size is a bit faster on magic squares
+        self.size() as f64
     }
 
     /// The total number of columns this table has.
