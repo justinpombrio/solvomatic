@@ -4,7 +4,7 @@
 //!
 //! Usage: cargo run --release --example jigsaw_sudoku examples/input/sudoku_2.txt examples/input/regions_2.txt
 
-use solvomatic::constraints::{Count, Permutation, Pred};
+use solvomatic::constraints::{Bag, Permutation, Pred};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::env;
@@ -130,7 +130,7 @@ fn main() {
             .push((row + 1, col + 1));
     });
     for (_, region) in regions.into_iter() {
-        solver.constraint(region, Count::new((1..=9).map(|n| (n, 1, 2))));
+        solver.constraint(region, Bag::new(1..=9, (1..=9).chain(1..=9)));
     }
 
     match solver.solve() {

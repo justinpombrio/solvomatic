@@ -1,6 +1,5 @@
 //! Intelligently computed restrictions on the `Value`s that `Var`s can have.
 
-mod count;
 mod permutation;
 mod pred;
 mod prod;
@@ -9,8 +8,7 @@ mod sum;
 
 use std::fmt::Debug;
 
-pub use count::Count;
-pub use permutation::Permutation;
+pub use permutation::{Bag, Permutation};
 pub use pred::Pred;
 pub use prod::Prod;
 pub use seq::Seq;

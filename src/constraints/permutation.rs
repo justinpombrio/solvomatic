@@ -3,6 +3,53 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+/// The constraint that `min ⊆ {X1, ..., Xn} ⊆ max`
+#[derive(Debug, Clone)]
+pub struct Bag<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+    min: Vec<T>,
+    max: Vec<T>,
+}
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Bag<T> {
+    pub fn new(min: impl IntoIterator<Item = T>, max: impl IntoIterator<Item = T>) -> Bag<T> {
+        let mut bag = Bag {
+            min: min.into_iter().collect::<Vec<_>>(),
+            max: max.into_iter().collect::<Vec<_>>(),
+        };
+        bag.min.sort();
+        bag.max.sort();
+        bag
+    }
+}
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Bag<T> {
+    /// (min_set, max_set)
+    type Set = (Vec<T>, Vec<T>);
+
+    const NAME: &'static str = "Bag";
+
+    fn singleton(&self, _index: usize, elem: T) -> Self::Set {
+        (vec![elem.clone()], vec![elem])
+    }
+
+    fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        (append_seq(a.0, b.0), append_seq(a.1, b.1))
+    }
+
+    fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        (
+            MinSeqPair(SeqPair::new(a.0.into_iter(), b.0.into_iter())).collect(),
+            MaxSeqPair(SeqPair::new(a.1.into_iter(), b.1.into_iter())).collect(),
+        )
+    }
+
+    fn check(&self, set: Self::Set) -> YesNoMaybe {
+        let min = SeqPair::new(set.0.iter(), self.max.iter()).subset_cmp();
+        let max = SeqPair::new(self.min.iter(), set.1.iter()).subset_cmp();
+        min.and(max)
+    }
+}
+
 /// The constraint that `{X1, ..., Xn} = expected`
 #[derive(Debug, Clone)]
 pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
@@ -11,9 +58,9 @@ pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
 
 impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
     pub fn new(expected: impl IntoIterator<Item = T>) -> Permutation<T> {
-        Permutation {
-            expected: expected.into_iter().collect::<Vec<_>>(),
-        }
+        let mut expected = expected.into_iter().collect::<Vec<_>>();
+        expected.sort();
+        Permutation { expected }
     }
 }
 
