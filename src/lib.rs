@@ -156,6 +156,9 @@ impl<S: State> Solvomatic<S> {
     fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
         let start_time = Instant::now();
 
+        // Mark completed constraints as done
+        self.mark_completed_constraints();
+
         let step_num = self.table.num_columns() - self.table.num_sections();
         if self.config.log_steps {
             println!(
@@ -165,9 +168,9 @@ impl<S: State> Solvomatic<S> {
                 self.table.possibilities(),
             );
         }
-
-        // Mark completed constraints as done
-        self.mark_completed_constraints();
+        if self.config.log_states {
+            println!("{}", self.table);
+        }
 
         // Merge all constant sections together
         self.table.merge_constants();
@@ -186,10 +189,6 @@ impl<S: State> Solvomatic<S> {
 
             // Merge the two sections that minimize the resulting table size
             self.table = options.into_iter().min_by_key(|t| t.size()).unwrap();
-        }
-
-        if self.config.log_states {
-            println!("{}", self.table);
         }
 
         // Log how long it took
@@ -226,7 +225,7 @@ impl<S: State> Solvomatic<S> {
     }
 
     /// Mark constraints that will _always_ hold as done.
-    pub fn mark_completed_constraints(&mut self) {
+    fn mark_completed_constraints(&mut self) {
         for constraint in &mut self.constraints {
             if constraint.done {
                 continue;
