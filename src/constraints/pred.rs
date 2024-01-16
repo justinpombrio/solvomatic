@@ -63,7 +63,7 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<T> {
     fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
         let mut result = a;
         for (i, elem) in b.into_iter().enumerate() {
-            if &result[i] != &elem {
+            if result[i] != elem {
                 result[i] = None;
             }
         }

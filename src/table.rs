@@ -1,6 +1,7 @@
 use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::{State, StateSet};
 use std::collections::HashMap;
+use std::default::Default;
 use std::fmt;
 
 /// A state of knowledge about the `Value`s that a set of `Var`s might have, represented as a cross
@@ -53,6 +54,12 @@ struct Section<S: State> {
     tuples: Vec<Vec<S::Value>>,
 }
 
+impl<S: State> Default for Table<S> {
+    fn default() -> Table<S> {
+        Table::new()
+    }
+}
+
 impl<S: State> Table<S> {
     /// Construct an empty table.
     pub fn new() -> Table<S> {
@@ -64,7 +71,7 @@ impl<S: State> Table<S> {
     /// Add a new column to the table. It will be its own Section.
     pub fn add_column(&mut self, x: S::Var, vals: impl IntoIterator<Item = S::Value>) {
         let vals = vals.into_iter().collect::<Vec<_>>();
-        assert!(vals.len() > 0);
+        assert!(!vals.is_empty());
         self.sections.push(Section {
             header: vec![x],
             tuples: map_vec(vals, |v| vec![v]),
@@ -96,8 +103,8 @@ impl<S: State> Table<S> {
 
         // Check if the constraint is guranteed to hold from now on
         let mut total_prod = partial_sums[0].2.clone();
-        for i in 1..partial_sums.len() {
-            total_prod = constraint.and(total_prod, partial_sums[i].2.clone());
+        for partial_sum in partial_sums.iter().skip(1) {
+            total_prod = constraint.and(total_prod, partial_sum.2.clone());
         }
         if constraint.check(total_prod) == YesNoMaybe::Yes {
             return Ok(true);
@@ -384,7 +391,7 @@ impl<S: State> fmt::Display for Table<S> {
                 states.push(tuple_to_state(&section.header, &section.tuples[0]));
             } else {
                 for tuple in &section.tuples {
-                    states.push(tuple_to_state(&section.header, &tuple));
+                    states.push(tuple_to_state(&section.header, tuple));
                 }
             }
             write!(f, "{}", StateSet(states))
@@ -397,7 +404,7 @@ impl<S: State> fmt::Display for Table<S> {
         };
         writeln!(f, "State is one of {}:", section.tuples.len())?;
         show_section(f, section)?;
-        while let Some(section) = sections.next() {
+        for section in sections {
             writeln!(f)?;
             writeln!(f, "and one of {}:", section.tuples.len())?;
             show_section(f, section)?;

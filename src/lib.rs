@@ -4,6 +4,13 @@
 //!
 //! TODO: Overview and examples
 
+// I'm I'll for warning against overly complex types, but Clippy is warning on some
+// types that aren't very complicated.
+#![allow(clippy::type_complexity)]
+// No strong feelings on this but it's a reasonable way to write things and it's
+// how the code currently works.
+#![allow(clippy::result_unit_err)]
+
 mod state;
 mod table;
 
@@ -68,6 +75,12 @@ impl Default for Config {
             log_elapsed: false,
             log_states: false,
         }
+    }
+}
+
+impl<S: State> Default for Solvomatic<S> {
+    fn default() -> Solvomatic<S> {
+        Solvomatic::new()
     }
 }
 
