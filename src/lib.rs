@@ -159,6 +159,9 @@ impl<S: State> Solvomatic<S> {
         // Mark completed constraints as done
         self.mark_completed_constraints();
 
+        // Merge all constant sections together
+        self.table.merge_constants();
+
         let step_num = self.table.num_columns() - self.table.num_sections();
         if self.config.log_steps {
             println!(
@@ -171,9 +174,6 @@ impl<S: State> Solvomatic<S> {
         if self.config.log_states {
             println!("{}", self.table);
         }
-
-        // Merge all constant sections together
-        self.table.merge_constants();
 
         // Consider merging all combinations of two Sections of the table
         if self.table.num_sections() > 1 {
