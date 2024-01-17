@@ -55,11 +55,11 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Seq<T> {
 /// Represents a set of sequences.
 #[derive(Debug, Clone)]
 pub struct SeqSet {
-    /// `set[i]` iff `allowed_seqs[i]` is in the set.
+    /// `set[i]` iff `allowed_seqs[i]` _may be_ in the set.
+    /// (`true` means `Yes|Maybe`, `false` means `No`)
     set: BitVec,
-    /// The number of sequences in the set, or `None` if the set contains at least one sequence
-    /// that's not in `allowed_seqs`.
-    cardinality: Option<u128>,
+    /// The number of sequences in the set.
+    count: u128,
 }
 
 impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Seq<T> {
@@ -75,51 +75,33 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Seq
                 set.set(i, true);
             }
         }
-        let cardinality = if set.count_ones() > 0 { Some(1) } else { None };
-        SeqSet { set, cardinality }
+        SeqSet { set, count: 1 }
     }
 
     fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        let set = a.set & b.set;
-        let cardinality = match (a.cardinality, b.cardinality) {
-            (None, None) | (None, Some(_)) | (Some(_), None) => None,
-            (Some(ca), Some(cb)) => Some(ca * cb),
-        };
-        SeqSet { set, cardinality }
+        SeqSet {
+            set: a.set & b.set,
+            count: a.count * b.count,
+        }
     }
 
     fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        let a_ones_count = a.set.count_ones();
-        let set = a.set | b.set;
-        // Brittle! We're going to assume that `b` is `and`s of `singleton`s. This implies that `|a
-        // U b| = |a|` or `|a U b| = |a| + |b|`.
-        if let Some(c) = b.cardinality {
-            assert_eq!(c, 1);
+        SeqSet {
+            set: a.set | b.set,
+            count: a.count + b.count,
         }
-        let cardinality = match (a.cardinality, b.cardinality) {
-            (None, None) | (None, Some(_)) | (Some(_), None) => None,
-            (Some(ca), Some(cb)) => {
-                if set.count_ones() == a_ones_count {
-                    Some(ca)
-                } else {
-                    Some(ca + cb)
-                }
-            }
-        };
-        SeqSet { set, cardinality }
     }
 
     fn check(&self, set: Self::Set) -> YesNoMaybe {
         use YesNoMaybe::{Maybe, No, Yes};
 
-        if set.set.any() {
-            if set.cardinality == Some(set.set.count_ones() as u128) {
-                Yes
-            } else {
-                Maybe
-            }
-        } else {
+        let num_words = set.set.count_ones() as u128;
+        if num_words == 0 {
             No
+        } else if num_words == set.count {
+            Yes
+        } else {
+            Maybe
         }
     }
 }
