@@ -1,6 +1,5 @@
 use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::{State, StateSet};
-use std::collections::HashMap;
 use std::default::Default;
 use std::fmt;
 
@@ -223,29 +222,6 @@ impl<S: State> Table<S> {
         }
 
         self.sections.insert(sec_1, Section { header, tuples });
-    }
-
-    // TODO: remove?
-    pub fn state(&self) -> HashMap<S::Var, S::Value> {
-        let mut map = HashMap::new();
-        for section in &self.sections {
-            if section.tuples.is_empty() {
-                continue;
-            }
-            for (i, x) in section.header.iter().enumerate() {
-                let v = &section.tuples[0][i];
-                let mut v_varies = false;
-                for tuple in &section.tuples {
-                    if &tuple[i] != v {
-                        v_varies = true;
-                    }
-                }
-                if !v_varies {
-                    map.insert(x.clone(), v.clone());
-                }
-            }
-        }
-        map
     }
 
     /// Construct new sections that are limited to the columns present in `params` and also in
