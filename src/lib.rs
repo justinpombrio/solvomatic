@@ -163,11 +163,10 @@ impl<S: State> Solvomatic<S> {
         // Merge all constant sections together
         self.table.merge_constants();
 
-        let step_num = self.table.num_columns() - self.table.num_sections();
         if self.config.log_steps {
             println!(
-                "Step {:2}: size = {:4} possibilities = {}",
-                step_num,
+                "\nNumber of partitions: {:2}, table size = {:4}, possibilities = {}",
+                self.table.num_sections(),
                 self.table.size(),
                 self.table.possibilities(),
             );
@@ -197,7 +196,6 @@ impl<S: State> Solvomatic<S> {
                 }
             }
             self.table = best_table;
-            println!("merged: {:?}", self.table.sections[0].header);
         }
 
         // Log how long it took
@@ -260,7 +258,7 @@ impl<S: State> Solvomatic<S> {
 impl<S: State> fmt::Display for Unsatisfiable<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "UNSATISFIABLE!")?;
-        writeln!(f, "State:\n{}", self.table)?;
+        writeln!(f, "{}", self.table)?;
         write!(f, "Constraint {} on [", self.constraint)?;
         for variable in &self.header {
             write!(f, "{:?} ", variable)?;
