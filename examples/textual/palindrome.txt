@@ -1,0 +1,12 @@
+# Five letter palindromes
+
+layout
+|  *****
+
+range a z
+|  *****
+
+rule word
+|  12345
+
+|  54321

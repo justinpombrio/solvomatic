@@ -1,0 +1,107 @@
+# Pyramid
+
+layout
+    *
+   * *
+  * * *
+
+range 1 6
+    *
+   * *
+  * * *
+
+constraint permutation 1 2 3 4 5 6
+    *
+   * *
+  * * *
+
+    *
+   * *
+  * * *
+
+constraint sum 6
+    *
+   . *
+  . . *
+
+==============================
+
+layout
+
+|   *
+|  * *
+| * * *
+
+range 1 6
+
+|   *
+|  * *
+| * * *
+
+|   *
+|  * *
+| * * *
+
+rule permutation 1 2 3 4 5 6
+
+|   *
+|  * *
+| * * *
+
+rule sum 6
+
+|   *
+|  . *
+| . . *
+
+==============================
+
+@layout
+  *
+ * *
+* * *
+
+@range 1 6
+  *
+ * *
+* * *
+
+  *
+ * *
+* * *
+
+@constraint permutation 1 2 3 4 5 6
+  *
+ * *
+* * *
+
+@constraint sum 6
+  *
+ . *
+. . *
+
+==============================
+
+layout
+!
+  *
+ * *
+* * *
+
+range 1 6
+!
+  *
+ * *
+* * *
+
+constraint permutation 1 2 3 4 5 6
+!
+  *
+ * *
+* * *
+
+constraint sum 6
+!
+  *
+ . *
+. . *

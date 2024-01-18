@@ -23,7 +23,6 @@ mod table;
 // - skyscraper constraints
 
 use constraints::Constraint;
-use std::default::Default;
 use std::fmt;
 use std::time::Instant;
 
@@ -76,12 +75,6 @@ impl Default for Config {
             log_elapsed: false,
             log_states: false,
         }
-    }
-}
-
-impl<S: State> Default for Solvomatic<S> {
-    fn default() -> Solvomatic<S> {
-        Solvomatic::new()
     }
 }
 
