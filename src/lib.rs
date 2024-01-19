@@ -251,7 +251,7 @@ impl<S: State> Solvomatic<S> {
         &self.table
     }
 
-    pub fn table_display(&self) -> impl fmt::Display + '_ {
+    pub fn display_table(&self) -> impl fmt::Display + '_ {
         self.table.display(&self.metadata)
     }
 }

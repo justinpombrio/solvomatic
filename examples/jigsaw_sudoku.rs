@@ -4,7 +4,7 @@
 //!
 //! Usage: cargo run --release --example jigsaw_sudoku examples/input/sudoku_2.txt examples/input/regions_2.txt
 
-use solvomatic::constraints::{Bag, Permutation, Pred};
+use solvomatic::constraints::{Permutation, Pred, SubsetAndSuperset};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::env;
@@ -17,10 +17,15 @@ struct Sudoku([[Option<u8>; 9]; 9]);
 impl State for Sudoku {
     type Var = (usize, usize);
     type Value = u8;
+    type MetaData = ();
 
     fn set(&mut self, var: (usize, usize), val: u8) {
         let (i, j) = var;
         self.0[i - 1][j - 1] = Some(val);
+    }
+
+    fn new(_: &()) -> Sudoku {
+        Sudoku::default()
     }
 }
 
@@ -73,7 +78,7 @@ fn main() {
     let sudoku_filename = &args[1];
     let regions_filename = &args[2];
 
-    let mut solver = Solvomatic::<Sudoku>::new();
+    let mut solver = Solvomatic::<Sudoku>::new(());
     solver.config().log_elapsed = true;
     solver.config().log_states = true;
 
@@ -130,7 +135,7 @@ fn main() {
             .push((row + 1, col + 1));
     });
     for (_, region) in regions.into_iter() {
-        solver.constraint(region, Bag::new(1..=9, (1..=9).chain(1..=9)));
+        solver.constraint(region, SubsetAndSuperset::new(1..=9, (1..=9).chain(1..=9)));
     }
 
     match solver.solve() {
@@ -140,5 +145,5 @@ fn main() {
             panic!("unsat");
         }
     }
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }

@@ -1,233 +1,318 @@
 use super::{Constraint, YesNoMaybe};
-use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-/// The constraint that `min ⊆ {X1, ..., Xn} ⊆ max`
-#[derive(Debug, Clone)]
-pub struct Bag<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
-    min: Vec<T>,
-    max: Vec<T>,
-}
+/**********************
+ * Constraint: Subset *
+ **********************/
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Bag<T> {
-    pub fn new(min: impl IntoIterator<Item = T>, max: impl IntoIterator<Item = T>) -> Bag<T> {
-        let mut bag = Bag {
-            min: min.into_iter().collect::<Vec<_>>(),
-            max: max.into_iter().collect::<Vec<_>>(),
-        };
-        bag.min.sort();
-        bag.max.sort();
-        bag
+/// The constraint that `{X1, ..., Xn} ⊆ set`
+#[derive(Debug, Clone)]
+pub struct Subset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static>(Bag<T>);
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Subset<T> {
+    pub fn new(set: impl IntoIterator<Item = T>) -> Subset<T> {
+        Subset(Bag::new(set))
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Bag<T> {
-    /// (min_set, max_set)
-    type Set = (Vec<T>, Vec<T>);
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Subset<T> {
+    type Set = BagRange<T>;
 
-    const NAME: &'static str = "Bag";
+    const NAME: &'static str = "Subset";
 
     fn singleton(&self, _index: usize, elem: T) -> Self::Set {
-        (vec![elem.clone()], vec![elem])
+        BagRange::singleton(elem)
     }
 
     fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        (append_seq(a.0, b.0), append_seq(a.1, b.1))
+        a.and(b)
     }
 
     fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        (
-            MinSeqPair(SeqPair::new(a.0.into_iter(), b.0.into_iter())).collect(),
-            MaxSeqPair(SeqPair::new(a.1.into_iter(), b.1.into_iter())).collect(),
-        )
+        a.or(b)
     }
 
-    fn check(&self, set: Self::Set) -> YesNoMaybe {
-        let min = SeqPair::new(set.0.iter(), self.max.iter()).subset_cmp();
-        let max = SeqPair::new(self.min.iter(), set.1.iter()).subset_cmp();
-        min.and(max)
+    fn check(&self, range: Self::Set) -> YesNoMaybe {
+        range.is_subset(&self.0)
     }
 }
+
+/************************
+ * Constraint: Superset *
+ ************************/
+
+/// The constraint that `set ⊆ {X1, ..., Xn}`
+#[derive(Debug, Clone)]
+pub struct Superset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static>(Bag<T>);
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Superset<T> {
+    pub fn new(set: impl IntoIterator<Item = T>) -> Superset<T> {
+        Superset(Bag::new(set))
+    }
+}
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Superset<T> {
+    type Set = BagRange<T>;
+
+    const NAME: &'static str = "Superset";
+
+    fn singleton(&self, _index: usize, elem: T) -> Self::Set {
+        BagRange::singleton(elem)
+    }
+
+    fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        a.and(b)
+    }
+
+    fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        a.or(b)
+    }
+
+    fn check(&self, range: Self::Set) -> YesNoMaybe {
+        range.is_superset(&self.0)
+    }
+}
+
+/*********************************
+ * Constraint: SubsetAndSuperset *
+ *********************************/
+
+/// The constraint that `min ⊆ {X1, ..., Xn} ⊆ max`
+#[derive(Debug, Clone)]
+pub struct SubsetAndSuperset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+    min: Bag<T>,
+    max: Bag<T>,
+}
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> SubsetAndSuperset<T> {
+    pub fn new(
+        min: impl IntoIterator<Item = T>,
+        max: impl IntoIterator<Item = T>,
+    ) -> SubsetAndSuperset<T> {
+        SubsetAndSuperset {
+            min: Bag::new(min),
+            max: Bag::new(max),
+        }
+    }
+}
+
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for SubsetAndSuperset<T> {
+    type Set = BagRange<T>;
+
+    const NAME: &'static str = "SubsetAndSuperset";
+
+    fn singleton(&self, _index: usize, elem: T) -> Self::Set {
+        BagRange::singleton(elem)
+    }
+
+    fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        a.and(b)
+    }
+
+    fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
+        a.or(b)
+    }
+
+    fn check(&self, range: Self::Set) -> YesNoMaybe {
+        range.is_subset(&self.max).and(range.is_superset(&self.min))
+    }
+}
+
+/***************************
+ * Constraint: Permutation *
+ ***************************/
 
 /// The constraint that `{X1, ..., Xn} = expected`
 #[derive(Debug, Clone)]
 pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
-    expected: Vec<T>,
+    expected: Bag<T>,
 }
 
 impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
     pub fn new(expected: impl IntoIterator<Item = T>) -> Permutation<T> {
-        let mut expected = expected.into_iter().collect::<Vec<_>>();
-        expected.sort();
-        Permutation { expected }
+        Permutation {
+            expected: Bag::new(expected),
+        }
     }
 }
 
 impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Permutation<T> {
-    /// (min_set, max_set)
-    type Set = (Vec<T>, Vec<T>);
+    type Set = BagRange<T>;
 
     const NAME: &'static str = "Permutation";
 
     fn singleton(&self, _index: usize, elem: T) -> Self::Set {
-        (vec![elem.clone()], vec![elem])
+        BagRange::singleton(elem)
     }
 
     fn and(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        (append_seq(a.0, b.0), append_seq(a.1, b.1))
+        a.and(b)
     }
 
     fn or(&self, a: Self::Set, b: Self::Set) -> Self::Set {
-        (
-            MinSeqPair(SeqPair::new(a.0.into_iter(), b.0.into_iter())).collect(),
-            MaxSeqPair(SeqPair::new(a.1.into_iter(), b.1.into_iter())).collect(),
-        )
+        a.or(b)
     }
 
-    fn check(&self, set: Self::Set) -> YesNoMaybe {
-        let min = SeqPair::new(set.0.iter(), self.expected.iter()).subset_cmp();
-        let max = SeqPair::new(self.expected.iter(), set.1.iter()).subset_cmp();
-        min.and(max)
+    fn check(&self, range: Self::Set) -> YesNoMaybe {
+        range.is_equal(&self.expected)
     }
 }
 
-fn append_seq<T: Ord>(vec_1: Vec<T>, mut vec_2: Vec<T>) -> Vec<T> {
-    let mut result = vec_1;
-    result.append(&mut vec_2);
-    result.sort();
-    result
+/************************
+ *     Bag Range        *
+ ************************/
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BagRange<T: Ord> {
+    min: Bag<T>,
+    max: Bag<T>,
 }
 
-struct SeqPair<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>> {
-    xs: std::iter::Peekable<I>,
-    ys: std::iter::Peekable<J>,
-}
-
-impl<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>> SeqPair<T, I, J> {
-    fn new(seq_1: I, seq_2: J) -> SeqPair<T, I, J> {
-        SeqPair {
-            xs: seq_1.peekable(),
-            ys: seq_2.peekable(),
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> BagRange<T> {
+    fn singleton(elem: T) -> BagRange<T> {
+        BagRange {
+            min: Bag::singleton(elem.clone()),
+            max: Bag::singleton(elem),
         }
     }
 
-    fn next(&mut self) -> Option<(T, Ordering)> {
-        match (self.xs.peek(), self.ys.peek()) {
-            (Some(x), Some(y)) if x == y => {
-                self.xs.next();
-                Some((self.ys.next().unwrap(), Ordering::Equal))
-            }
-            (Some(x), Some(y)) if x < y => Some((self.xs.next().unwrap(), Ordering::Less)),
-            (Some(_), Some(_)) => Some((self.ys.next().unwrap(), Ordering::Greater)),
-            (Some(_), None) => Some((self.xs.next().unwrap(), Ordering::Less)),
-            (None, Some(_)) => Some((self.ys.next().unwrap(), Ordering::Greater)),
-            (None, None) => None,
+    fn and(self, other: BagRange<T>) -> BagRange<T> {
+        BagRange {
+            min: self.min.union(other.min),
+            max: self.max.union(other.max),
         }
     }
 
-    fn subset_cmp(&mut self) -> YesNoMaybe {
+    fn or(self, other: BagRange<T>) -> BagRange<T> {
+        BagRange {
+            min: self.min.intersection(other.min),
+            max: self.max.union(other.max),
+        }
+    }
+
+    fn is_equal(&self, other: &Bag<T>) -> YesNoMaybe {
         use YesNoMaybe::{Maybe, No, Yes};
 
-        let mut equal = true;
-        while let Some((_, ord)) = self.next() {
-            match ord {
-                Ordering::Equal => (),
-                Ordering::Greater => equal = false,
-                Ordering::Less => return No,
+        if self.min.is_subset(other) && other.is_subset(&self.max) {
+            if self.max.is_subset(&self.min) {
+                Yes
+            } else {
+                Maybe
             }
+        } else {
+            No
         }
-        if equal {
+    }
+
+    fn is_subset(&self, other: &Bag<T>) -> YesNoMaybe {
+        use YesNoMaybe::{Maybe, No, Yes};
+
+        if self.max.is_subset(&other) {
             Yes
-        } else {
+        } else if self.min.is_subset(&other) {
             Maybe
+        } else {
+            No
+        }
+    }
+
+    fn is_superset(&self, other: &Bag<T>) -> YesNoMaybe {
+        use YesNoMaybe::{Maybe, No, Yes};
+
+        if other.is_subset(&self.min) {
+            Yes
+        } else if other.is_subset(&self.max) {
+            Maybe
+        } else {
+            No
         }
     }
 }
 
-struct MinSeqPair<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>>(SeqPair<T, I, J>);
+/************************
+ *     Bag              *
+ ************************/
 
-impl<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>> Iterator for MinSeqPair<T, I, J> {
-    type Item = T;
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Bag<T: Ord>(Vec<T>);
 
-    fn next(&mut self) -> Option<T> {
-        loop {
-            match self.0.next() {
-                Some((x, Ordering::Equal)) => return Some(x),
-                Some((_, Ordering::Less)) => (),
-                Some((_, Ordering::Greater)) => (),
-                None => return None,
+impl<T: Ord> Bag<T> {
+    fn singleton(elem: T) -> Bag<T> {
+        Bag(vec![elem])
+    }
+
+    fn new(elems: impl IntoIterator<Item = T>) -> Bag<T> {
+        let mut elems = elems.into_iter().collect::<Vec<_>>();
+        elems.sort();
+        Bag(elems)
+    }
+
+    fn union(self, other: Bag<T>) -> Bag<T> {
+        let mut union = Vec::new();
+        let mut other_iter = other.0.into_iter().peekable();
+
+        for x in self.0 {
+            while other_iter.peek().is_some() && *other_iter.peek().unwrap() <= x {
+                union.push(other_iter.next().unwrap());
+            }
+            union.push(x);
+        }
+        union.extend(other_iter);
+
+        Bag(union)
+    }
+
+    fn intersection(self, other: Bag<T>) -> Bag<T> {
+        let mut intersection = Vec::new();
+        let mut other_iter = other.0.into_iter().peekable();
+
+        for x in self.0 {
+            while other_iter.peek().is_some() && *other_iter.peek().unwrap() < x {
+                other_iter.next();
+            }
+            if other_iter.peek().is_some() && *other_iter.peek().unwrap() == x {
+                other_iter.next();
+                intersection.push(x);
             }
         }
+
+        Bag(intersection)
     }
-}
 
-struct MaxSeqPair<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>>(SeqPair<T, I, J>);
+    fn is_subset(&self, other: &Bag<T>) -> bool {
+        let mut other_iter = other.0.iter().peekable();
 
-impl<T: Ord, I: Iterator<Item = T>, J: Iterator<Item = T>> Iterator for MaxSeqPair<T, I, J> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<T> {
-        if let Some((x, _)) = self.0.next() {
-            Some(x)
-        } else {
-            None
+        for x in &self.0 {
+            while other_iter.peek().is_some() && **other_iter.peek().unwrap() < *x {
+                other_iter.next();
+            }
+            let y = match other_iter.next() {
+                None => return false,
+                Some(y) => y,
+            };
+            if *y > *x {
+                return false;
+            }
         }
+        true
     }
 }
 
 #[test]
-fn test_seq_pair() {
-    let mut pair = SeqPair::new([1, 2, 2].into_iter(), [0, 2, 4].into_iter());
-    assert_eq!(pair.next(), Some((0, Ordering::Greater)));
-    assert_eq!(pair.next(), Some((1, Ordering::Less)));
-    assert_eq!(pair.next(), Some((2, Ordering::Equal)));
-    assert_eq!(pair.next(), Some((2, Ordering::Less)));
-    assert_eq!(pair.next(), Some((4, Ordering::Greater)));
-    assert_eq!(pair.next(), None);
-    assert_eq!(pair.next(), None);
-}
+fn test_bag() {
+    fn bag(chars: &str) -> Bag<char> {
+        Bag::new(chars.chars())
+    }
 
-#[test]
-fn test_permutation() {
-    use YesNoMaybe::{Maybe, No, Yes};
+    fn show(bag: Bag<char>) -> String {
+        bag.0.into_iter().collect::<String>()
+    }
 
-    let s = Permutation::new([1, 2, 3, 3]);
-
-    let one = || s.singleton(0, 1);
-    let two = || s.singleton(0, 2);
-    let three = || s.singleton(0, 3);
-    let four = || s.singleton(0, 4);
-
-    assert_eq!(one(), (vec![1], vec![1]));
-    assert_eq!(s.or(one(), one()), one());
-    assert_eq!(s.or(one(), two()), (vec![], vec![1, 2]));
-    assert_eq!(s.and(one(), two()), (vec![1, 2], vec![1, 2]));
-    assert_eq!(
-        s.and(s.or(one(), two()), s.or(two(), three())),
-        (vec![], vec![1, 2, 2, 3])
-    );
-    assert_eq!(s.and(two(), s.or(one(), four())), (vec![2], vec![1, 2, 4]));
-    assert_eq!(s.and(one(), one()), (vec![1, 1], vec![1, 1]));
-
-    assert_eq!(
-        s.check(s.and(one(), s.and(two(), s.and(three(), three())))),
-        Yes
-    );
-    assert_eq!(s.check(s.and(one(), s.and(two(), three()))), No);
-
-    let or14 = || s.or(one(), four());
-    let or13 = || s.or(one(), three());
-    let or23 = || s.or(two(), three());
-
-    assert_eq!(
-        s.check(s.and(or14(), s.and(or13(), s.and(or23(), or13())))),
-        Maybe
-    );
-
-    // Actually Yes, but the the reasoning isn't strong enough to determine that
-    assert_eq!(
-        s.check(s.and(or14(), s.and(or13(), s.and(or23(), s.and(or13(), or13()))))),
-        Maybe
-    );
+    assert_eq!(show(bag("aabeeg").union(bag("abbcf"))), "aaabbbceefg");
+    assert_eq!(show(bag("abbcdff").intersection(bag("bceeffg"))), "bcff");
+    assert!(bag("ace").is_subset(&bag("abccde")));
+    assert!(!bag("ace").is_subset(&bag("abde")));
+    assert!(bag("a").is_subset(&bag("aa")));
+    assert!(bag("b").is_subset(&bag("abc")));
 }

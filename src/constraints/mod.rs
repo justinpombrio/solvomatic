@@ -8,7 +8,7 @@ mod sum;
 
 use std::fmt::Debug;
 
-pub use permutation::{Bag, Permutation};
+pub use permutation::{Permutation, Subset, SubsetAndSuperset, Superset};
 pub use pred::Pred;
 pub use prod::Prod;
 pub use seq::Seq;

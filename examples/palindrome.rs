@@ -10,9 +10,14 @@ struct Palindrome([Option<char>; 6]);
 impl State for Palindrome {
     type Var = usize;
     type Value = char;
+    type MetaData = ();
 
     fn set(&mut self, var: usize, val: char) {
         self.0[var] = Some(val);
+    }
+
+    fn new(_: &()) -> Palindrome {
+        Palindrome::default()
     }
 }
 
@@ -33,7 +38,7 @@ fn main() {
     println!("Finding all six letter palindromes in /usr/share/dict/words");
     println!();
 
-    let mut solver = Solvomatic::<Palindrome>::new();
+    let mut solver = Solvomatic::<Palindrome>::new(());
     solver.config().log_completed = true;
 
     // Every cell is a letter
@@ -54,5 +59,5 @@ fn main() {
     solver.constraint([2, 3], Pred::new(|[a, b]| *a == *b));
 
     solver.solve().unwrap();
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }

@@ -11,20 +11,24 @@ use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
 
-const DICTIONARY_PATH: &str = "/usr/share/dict/words";
+const STAR: i32 = -27; // entry representing '*'
 
 /************************
  *     Entry            *
  ************************/
 
-/// One entry: either a letter or a number, or '.' if unknown.
+/// One of three things:
+///
+/// - A positive number
+/// - A letter, represented as a negative number (a=-1, b=-2, etc.)
+/// - '.', meaning unknown, represented as None
 #[derive(Debug, Clone, Copy)]
 struct Entry(Option<i32>);
 
-// Assumes word.len() == 1!
 fn read_letter(word: &str) -> Option<i32> {
     if word.len() != 1 {
         return None;
@@ -32,44 +36,41 @@ fn read_letter(word: &str) -> Option<i32> {
 
     let byte = word.chars().next().unwrap() as i32;
     if byte >= 65 && byte <= 90 {
-        Some(byte - 64)
+        // upper case letter -> negative one-based number index
+        Some(64 - byte)
     } else if byte >= 97 && byte <= 122 {
-        Some(byte - 96)
+        // lower case letter -> negative one-based number index
+        Some(96 - byte)
     } else {
         None
     }
 }
 
-impl Entry {
-    /// If `negative_letters` is true, parse `a, b, c` as `-1, -2, -3`
-    fn read(word: &str, negative_letters: bool) -> Option<Entry> {
+impl FromStr for Entry {
+    type Err = BadInput;
+
+    fn from_str(word: &str) -> Result<Entry, BadInput> {
         if word == "." {
-            Some(Entry(None))
+            Ok(Entry(None))
         } else if word == "*" {
-            // Shouldn't occur in actual input, only templates
-            Some(Entry(Some(0)))
+            // '*' shouldn't occur in actual input, only templates
+            Ok(Entry(Some(STAR)))
         } else if let Some(n) = read_letter(word) {
-            if negative_letters {
-                Some(Entry(Some(-n)))
-            } else {
-                Some(Entry(Some(n)))
-            }
-        } else if let Ok(num) = i32::from_str(word) {
-            Some(Entry(Some(num)))
+            Ok(Entry(Some(n)))
+        } else if let Ok(n) = u32::from_str(word) {
+            Ok(Entry(Some(n as i32)))
         } else {
-            None
+            Err(BadInput::BadEntry(word.to_owned()))
         }
     }
+}
 
-    fn write(&self, f: &mut fmt::Formatter, is_letter: bool) -> fmt::Result {
-        if let Some(num) = self.0 {
-            if is_letter && num >= 1 && num <= 26 {
-                write!(f, "{}", (num + 64) as u8 as char)
-            } else {
-                write!(f, "{}", num)
-            }
-        } else {
-            write!(f, ".")
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Some(n) if n < 0 => write!(f, "{}", (-n + 64) as u8 as char),
+            Some(n) => write!(f, "{}", n),
+            None => write!(f, "."),
         }
     }
 }
@@ -84,9 +85,6 @@ struct Layout {
     /// Whitespace that occurs around and between the entries. Has length one
     /// more than the number of entries.
     whitespace: Vec<String>,
-    /// Map from entry index to boolean indicating whether it should be interpreted
-    /// as a letter vs. as a numeral.
-    is_letter: Vec<bool>,
 }
 
 impl Layout {
@@ -98,10 +96,7 @@ impl Layout {
             match remaining_input.find("*") {
                 None => {
                     whitespace.push(remaining_input.to_owned());
-                    return Layout {
-                        is_letter: vec![false; whitespace.len() - 1],
-                        whitespace,
-                    };
+                    return Layout { whitespace };
                 }
                 Some(offset) => {
                     whitespace.push(remaining_input[..offset].to_owned());
@@ -114,15 +109,11 @@ impl Layout {
     fn parse_input<'a>(
         &'a self,
         input: &'a str,
-        // If true, parse 'a, b, c' as '-1, -2, -3'.
-        // Used hackily to help parse rules, which use both letters & numbers.
-        negative_letters: bool,
     ) -> impl Iterator<Item = Result<Entry, BadInput>> + 'a {
         LayoutParser {
             at_start: true,
             whitespace: &self.whitespace,
             input,
-            negative_letters,
         }
     }
 }
@@ -132,7 +123,6 @@ struct LayoutParser<'a> {
     at_start: bool,
     whitespace: &'a [String],
     input: &'a str,
-    negative_letters: bool,
 }
 
 impl<'a> Iterator for LayoutParser<'a> {
@@ -184,10 +174,7 @@ impl<'a> Iterator for LayoutParser<'a> {
         };
 
         // Parse Entry
-        match Entry::read(word, self.negative_letters) {
-            Some(entry) => Some(Ok(entry)),
-            None => Some(Err(BadInput::BadEntry(word.to_owned()))),
-        }
+        Some(Entry::from_str(word))
     }
 }
 
@@ -212,18 +199,16 @@ impl State for Data {
 
     fn new(layout: &Rc<Layout>) -> Data {
         Data {
-            entries: vec![Entry(None); layout.is_letter.len()],
+            entries: vec![Entry(None); layout.whitespace.len() - 1],
             layout: layout.clone(),
         }
     }
 }
 
 impl Data {
-    fn new(input: &str, layout: Rc<Layout>, negative_letters: bool) -> Result<Data, BadInput> {
+    fn new(input: &str, layout: Rc<Layout>) -> Result<Data, BadInput> {
         Ok(Data {
-            entries: layout
-                .parse_input(input, negative_letters)
-                .collect::<Result<Vec<_>, _>>()?,
+            entries: layout.parse_input(input).collect::<Result<Vec<_>, _>>()?,
             layout,
         })
     }
@@ -233,15 +218,14 @@ impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.layout.whitespace[0])?;
         for i in 0..self.entries.len() {
-            self.entries[i].write(f, self.layout.is_letter[i])?;
-            write!(f, "{}", self.layout.whitespace[i + 1])?;
+            write!(f, "{}{}", self.entries[i], self.layout.whitespace[i + 1])?;
         }
         Ok(())
     }
 }
 
 /************************
- *     Bad Input Error  *
+ *     Input Errors     *
  ************************/
 
 #[derive(Debug)]
@@ -278,7 +262,10 @@ struct PuzzleRange {
 enum PuzzleRule {
     Sum(i32),
     Prod(i32),
-    Word,
+    Word(String),
+    Permutation(Vec<i32>),
+    Superset(Vec<i32>),
+    Subset(Vec<i32>),
 }
 
 #[derive(Debug, Clone)]
@@ -295,33 +282,50 @@ struct PuzzleDefinition {
     initial: Option<String>,
 }
 
+struct WordListLoader {
+    cache: HashMap<PathBuf, String>,
+}
+
+impl WordListLoader {
+    fn new() -> WordListLoader {
+        WordListLoader {
+            cache: HashMap::new(),
+        }
+    }
+
+    fn load(&mut self, path: &str, word_len: usize) -> solvomatic::constraints::Seq<i32> {
+        let word_list = self
+            .cache
+            .entry(PathBuf::from(path))
+            .or_insert_with(|| fs::read_to_string(path).expect("Failed to load word list"));
+
+        let words = word_list
+            .lines()
+            .map(|s| s.trim())
+            .filter(|s| &s.to_lowercase() == s) // filter out proper nouns
+            .filter(|s| s.chars().count() == word_len)
+            .map(|s| s.chars().map(|ch| 96 - (ch as i32)).collect::<Vec<_>>());
+
+        solvomatic::constraints::Seq::new(word_len, words)
+    }
+}
+
 impl PuzzleDefinition {
     fn make_solver(self) -> Result<Solvomatic<Data>, BadInput> {
-        use solvomatic::constraints::{Pred, Prod, Seq, Sum};
+        use solvomatic::constraints::{Permutation, Pred, Prod, Subset, Sum, Superset};
 
-        fn load_word_list(word_len: usize) -> Seq<i32> {
-            // TODO: loading the same file repeatedly!
-            let words = fs::read_to_string(DICTIONARY_PATH).expect("Failed to load dictionary");
-            let words = words
-                .lines()
-                .map(|s| s.trim())
-                .filter(|s| &s.to_lowercase() == s)
-                .filter(|s| s.chars().count() == word_len)
-                .map(|s| s.chars().map(|ch| ch as i32 - 94).collect::<Vec<_>>())
-                .collect::<Vec<_>>();
-            Seq::new(word_len, words)
-        }
+        let mut word_list_loader = WordListLoader::new();
 
         let original_layout = Layout::new(&self.layout);
         let layout = Rc::new(original_layout.clone());
         let mut solver = Solvomatic::new(layout.clone());
 
         for range in &self.ranges {
-            let data = Data::new(&range.data, layout.clone(), false)?;
+            let data = Data::new(&range.data, layout.clone())?;
             for (i, entry) in data.entries.iter().enumerate() {
                 match entry {
                     Entry(None) => (),
-                    Entry(Some(0)) => solver.var(i, range.min..=range.max),
+                    Entry(Some(STAR)) => solver.var(i, range.min..=range.max),
                     Entry(Some(n)) => return Err(BadInput::BadRangeEntry(*n)),
                 }
             }
@@ -331,7 +335,7 @@ impl PuzzleDefinition {
             let mut var_lists = Vec::new();
             for data in &rule.datas {
                 let mut key_to_var_list = HashMap::new();
-                let data = Data::new(data, layout.clone(), true /* parse letters as neg */)?;
+                let data = Data::new(data, layout.clone())?;
                 for (i, entry) in data.entries.iter().enumerate() {
                     if let Entry(Some(entry)) = entry {
                         let key = if *entry >= 0 {
@@ -356,19 +360,28 @@ impl PuzzleDefinition {
                 }
             }
             for var_list in var_lists {
-                match rule.rule {
-                    PuzzleRule::Sum(sum) => solver.constraint(var_list, Sum::new(sum)),
-                    PuzzleRule::Prod(prod) => solver.constraint(var_list, Prod::new(prod)),
-                    PuzzleRule::Word => {
-                        let words = load_word_list(var_list.len());
+                match &rule.rule {
+                    PuzzleRule::Sum(sum) => solver.constraint(var_list, Sum::new(*sum)),
+                    PuzzleRule::Prod(prod) => solver.constraint(var_list, Prod::new(*prod)),
+                    PuzzleRule::Word(path) => {
+                        let words = word_list_loader.load(path, var_list.len());
                         solver.constraint(var_list, words);
+                    }
+                    PuzzleRule::Permutation(permutation) => {
+                        solver.constraint(var_list, Permutation::new(permutation.iter().copied()))
+                    }
+                    PuzzleRule::Subset(set) => {
+                        solver.constraint(var_list, Subset::new(set.iter().copied()))
+                    }
+                    PuzzleRule::Superset(set) => {
+                        solver.constraint(var_list, Superset::new(set.iter().copied()))
                     }
                 }
             }
         }
 
         if let Some(initial) = self.initial {
-            let data = Data::new(&initial, layout.clone(), false)?;
+            let data = Data::new(&initial, layout.clone())?;
             for (i, entry) in data.entries.iter().enumerate() {
                 match entry {
                     Entry(None) => (),
@@ -380,7 +393,6 @@ impl PuzzleDefinition {
             }
         }
 
-        // TODO
         Ok(solver)
     }
 }
@@ -426,11 +438,18 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
             data_p.clone(),
         ),
     )
-    .map(|(_, min, max, data)| PuzzleRange { min, max, data });
+    .map(|(_, a, b, data)| PuzzleRange {
+        min: a.min(b),
+        max: a.max(b),
+        data,
+    });
 
     // rule name arg...
     //   DATA
     //   ...
+    let path = g
+        .regex("path", "[/a-zA-Z0-9.-]+")?
+        .span(|span| span.substr.to_owned());
     let sum_p = entry_p
         .clone()
         .preceded(g.string("sum")?)
@@ -439,8 +458,26 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         .clone()
         .preceded(g.string("prod")?)
         .map(|entry| PuzzleRule::Prod(entry));
-    let word_p = g.string("word")?.constant(PuzzleRule::Word);
-    let rule_p = choice("rule name ('sum', 'prod', 'word')", (sum_p, prod_p, word_p));
+    let permutation_p = tuple(
+        "permutation rule",
+        (g.string("permutation")?, entry_p.clone().many1()),
+    )
+    .map(|(_, entries)| PuzzleRule::Permutation(entries));
+    let subset_p = tuple(
+        "subset rule",
+        (g.string("subset")?, entry_p.clone().many1()),
+    )
+    .map(|(_, entries)| PuzzleRule::Subset(entries));
+    let superset_p = tuple(
+        "superset rule",
+        (g.string("superset")?, entry_p.clone().many1()),
+    )
+    .map(|(_, entries)| PuzzleRule::Superset(entries));
+    let word_p = path.preceded(g.string("word")?).map(PuzzleRule::Word);
+    let rule_p = choice(
+        "rule name ('sum', 'prod', 'word', 'permutation', 'subset', 'supserset')",
+        (sum_p, prod_p, word_p, permutation_p, subset_p, superset_p),
+    );
     let rule_and_datas_p = tuple("rule", (g.string("rule")?, rule_p, data_p.clone().many1()))
         .map(|(_, rule, datas)| PuzzleRuleAndDatas { rule, datas });
 
@@ -477,25 +514,24 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         initial,
     });
 
-    // Better error messages
-    g.regex("identifier", "[a-zA-Z]+")?;
-
     g.compile_parser(puzzle_p)
 }
 
 fn main() {
-    let filename = "examples/textual/palindrome.txt";
+    use std::env;
+
+    let args = env::args().collect::<Vec<_>>();
+    assert_eq!(args.len(), 2);
+    let filename = &args[1];
 
     let parser = make_puzzle_parser().unwrap_or_else(|err| panic!("{}", err));
     let file_contents = fs::read_to_string(filename).unwrap();
     let puzzle_definition = parser
         .parse(filename, &file_contents)
         .unwrap_or_else(|err| panic!("{}", err));
-    println!("{:#?}", puzzle_definition);
     let mut solver = puzzle_definition
         .make_solver()
         .unwrap_or_else(|err| panic!("{}", err));
     solver.solve().unwrap_or_else(|err| panic!("{}", err));
-    println!("{}", solver.table_display());
-    println!("ok");
+    println!("{}", solver.display_table());
 }

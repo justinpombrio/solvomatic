@@ -17,10 +17,15 @@ impl<const N: usize> Default for WordSquare<N> {
 impl<const N: usize> State for WordSquare<N> {
     type Var = (usize, usize);
     type Value = char;
+    type MetaData = ();
 
     fn set(&mut self, var: (usize, usize), letter: char) {
         let (i, j) = var;
         self.0[i][j] = Some(letter);
+    }
+
+    fn new(_: &()) -> WordSquare<N> {
+        WordSquare::default()
     }
 }
 
@@ -44,7 +49,7 @@ fn main() {
     println!("Finding all 4x4 word squares whose diagonals are vowels.");
     println!();
 
-    let mut solver = Solvomatic::<WordSquare<4>>::new();
+    let mut solver = Solvomatic::<WordSquare<4>>::new(());
     solver.config().log_completed = true;
 
     let mut all_cells = Vec::new();
@@ -87,5 +92,5 @@ fn main() {
     solver.constraint([(0, 3), (3, 0)], Pred::new(|[x, y]| x < y));
 
     solver.solve().unwrap();
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }

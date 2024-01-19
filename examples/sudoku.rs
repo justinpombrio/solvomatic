@@ -10,10 +10,15 @@ struct Sudoku([[Option<u8>; 9]; 9]);
 impl State for Sudoku {
     type Var = (usize, usize);
     type Value = u8;
+    type MetaData = ();
 
     fn set(&mut self, var: (usize, usize), val: u8) {
         let (i, j) = var;
         self.0[i - 1][j - 1] = Some(val);
+    }
+
+    fn new(_: &()) -> Sudoku {
+        Sudoku::default()
     }
 }
 
@@ -45,7 +50,7 @@ fn main() {
     println!("Solving a hard sudoku.");
     println!();
 
-    let mut solver = Solvomatic::<Sudoku>::new();
+    let mut solver = Solvomatic::<Sudoku>::new(());
     solver.config().log_elapsed = true;
 
     // There are 81 cells. Each cell is a number 1..9
@@ -111,5 +116,5 @@ fn main() {
     }
 
     solver.solve().unwrap();
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }

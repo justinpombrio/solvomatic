@@ -17,10 +17,15 @@ impl<const N: usize> Default for MagicSquare<N> {
 impl<const N: usize> State for MagicSquare<N> {
     type Var = (i8, i8);
     type Value = u8;
+    type MetaData = ();
 
     fn set(&mut self, var: (i8, i8), val: u8) {
         let (i, j) = var;
         self.0[i as usize][j as usize] = Some(val);
+    }
+
+    fn new(_: &()) -> MagicSquare<N> {
+        MagicSquare::default()
     }
 }
 
@@ -44,7 +49,7 @@ fn main() {
     println!("Finding all associative 4x4 magic squares.");
     println!();
 
-    let mut solver = Solvomatic::<MagicSquare<4>>::new();
+    let mut solver = Solvomatic::<MagicSquare<4>>::new(());
     solver.config().log_completed = true;
 
     let mut all_cells = Vec::new();
@@ -91,5 +96,5 @@ fn main() {
     solver.constraint([(0, 3), (3, 0)], Pred::new(|[x, y]| x < y));
 
     solver.solve().unwrap();
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }

@@ -70,7 +70,9 @@ impl<S: State> Table<S> {
     /// Add a new column to the table. It will be its own Section.
     pub fn add_column(&mut self, x: S::Var, vals: impl IntoIterator<Item = S::Value>) {
         let vals = vals.into_iter().collect::<Vec<_>>();
-        assert!(!vals.is_empty());
+        if vals.is_empty() {
+            panic!("Empty range given for variable {:?}", x);
+        }
         self.sections.push(Section {
             header: vec![x],
             tuples: map_vec(vals, |v| vec![v]),

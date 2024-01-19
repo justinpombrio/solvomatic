@@ -12,9 +12,14 @@ struct Apples(HashMap<String, u32>);
 impl State for Apples {
     type Var = String;
     type Value = u32;
+    type MetaData = ();
 
     fn set(&mut self, fruit: String, count: u32) {
         self.0.insert(fruit, count);
+    }
+
+    fn new(_: &()) -> Apples {
+        Apples::default()
     }
 }
 
@@ -38,7 +43,7 @@ fn main() {
     println!("Solving for fruits...");
     println!();
 
-    let mut solver = Solvomatic::<Apples>::new();
+    let mut solver = Solvomatic::<Apples>::new(());
     solver.config().log_completed = true;
 
     // Read possible fruit PLUs from file, and set a var for each fruit. Example line:
@@ -81,5 +86,5 @@ fn main() {
     solver.var("apple".to_owned(), 4000..5000);
 
     solver.solve().unwrap();
-    println!("{}", solver.table());
+    println!("{}", solver.display_table());
 }
