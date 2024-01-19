@@ -358,10 +358,18 @@ impl<S: State> Clone for Table<S> {
     }
 }
 
-impl<S: State> fmt::Display for Table<S> {
+impl<S: State> Table<S> {
+    pub fn display<'a>(&'a self, metadata: &'a S::MetaData) -> impl fmt::Display + 'a {
+        TableWriter(self, metadata)
+    }
+}
+
+struct TableWriter<'a, S: State>(&'a Table<S>, &'a S::MetaData);
+
+impl<'a, S: State> fmt::Display for TableWriter<'a, S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let tuple_to_state = |header: &[S::Var], tuple: &[S::Value]| -> S {
-            let mut state = S::default();
+            let mut state = S::new(self.1);
             for (i, x) in header.iter().enumerate() {
                 state.set(x.clone(), tuple[i].clone());
             }
@@ -380,7 +388,7 @@ impl<S: State> fmt::Display for Table<S> {
             write!(f, "{}", StateSet(states))
         };
 
-        let mut sections = self.sections.iter();
+        let mut sections = self.0.sections.iter();
         let section = match sections.next() {
             None => return write!(f, "State is empty!"),
             Some(section) => section,

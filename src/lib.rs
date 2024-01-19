@@ -36,6 +36,7 @@ pub struct Solvomatic<S: State> {
     table: Table<S>,
     constraints: Vec<DynConstraint<S>>,
     config: Config,
+    metadata: S::MetaData,
 }
 
 /// The problem was over constrained! Contained is a snapshot of the Table just before a constraint
@@ -46,6 +47,7 @@ pub struct Unsatisfiable<S: State> {
     pub table: Table<S>,
     pub header: Vec<S::Var>,
     pub constraint: String,
+    metadata: S::MetaData,
 }
 
 struct DynConstraint<S: State> {
@@ -81,11 +83,12 @@ impl Default for Config {
 impl<S: State> Solvomatic<S> {
     /// Construct an empty solver. Call `var()` and `constraint()` to give it variables and
     /// constraints, then `solve()` to solve for them.
-    pub fn new() -> Solvomatic<S> {
+    pub fn new(metadata: S::MetaData) -> Solvomatic<S> {
         Solvomatic {
             table: Table::new(),
             constraints: Vec::new(),
             config: Config::default(),
+            metadata,
         }
     }
 
@@ -165,7 +168,7 @@ impl<S: State> Solvomatic<S> {
             );
         }
         if self.config.log_states {
-            println!("{}", self.table);
+            println!("{}", self.table.display(&self.metadata));
         }
 
         // Consider merging all combinations of two Sections of the table
@@ -216,6 +219,7 @@ impl<S: State> Solvomatic<S> {
                             table,
                             constraint: constraint.name.clone(),
                             header: constraint.params.clone(),
+                            metadata: self.metadata.clone(),
                         })
                     }
                 }
@@ -246,12 +250,16 @@ impl<S: State> Solvomatic<S> {
     pub fn table(&self) -> &Table<S> {
         &self.table
     }
+
+    pub fn table_display(&self) -> impl fmt::Display + '_ {
+        self.table.display(&self.metadata)
+    }
 }
 
 impl<S: State> fmt::Display for Unsatisfiable<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "UNSATISFIABLE!")?;
-        writeln!(f, "{}", self.table)?;
+        writeln!(f, "{}", self.table.display(&self.metadata))?;
         write!(f, "Constraint {} on [", self.constraint)?;
         for variable in &self.header {
             write!(f, "{:?} ", variable)?;

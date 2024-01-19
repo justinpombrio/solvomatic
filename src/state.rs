@@ -6,11 +6,14 @@ const TEXT_BOX_PADDING: usize = 4;
 const TEXT_BOX_WIDTH: usize = 90;
 
 /// The state for some kind of puzzle. It maps `Var` to `Value`, and can be nicely `Display`ed.
-/// Importantly, not all `Var`s will have a `Value`. The `Default` state should have `None` for all
+/// Importantly, not all `Var`s will have a `Value`. The default state should have `None` for all
 /// `Var`s.
-pub trait State: Display + Default + 'static {
+pub trait State: Display + 'static {
     type Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
     type Value: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
+    type MetaData: Clone;
+
+    fn new(metadata: &Self::MetaData) -> Self;
 
     fn set(&mut self, var: Self::Var, val: Self::Value);
 }
