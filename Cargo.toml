@@ -12,5 +12,6 @@ opt-level = 3
 bitvec = "1.*"
 argh = "0.1"
 rayon = "1.8"
+termsize = "0.1"
 # TODO
 parser-ll1 = { path = "../experiments/parser-ll1/" }

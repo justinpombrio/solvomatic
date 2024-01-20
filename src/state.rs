@@ -3,7 +3,6 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 const TEXT_BOX_PADDING: usize = 4;
-const TEXT_BOX_WIDTH: usize = 90;
 
 /// The state for some kind of puzzle. It maps `Var` to `Value`, and can be nicely `Display`ed.
 /// Importantly, not all `Var`s will have a `Value`. The default state should have `None` for all
@@ -24,7 +23,10 @@ pub struct StateSet<S: State>(pub Vec<S>);
 
 impl<S: State> Display for StateSet<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut text_box = TextBox::new(TEXT_BOX_WIDTH);
+        let printing_width = termsize::get()
+            .map(|size| size.cols as usize - TEXT_BOX_PADDING)
+            .unwrap_or(50);
+        let mut text_box = TextBox::new(printing_width);
         for state in &self.0 {
             text_box.append(format!("{}", state));
         }
