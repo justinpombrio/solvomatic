@@ -5,14 +5,14 @@ use std::marker::PhantomData;
 
 /// The constraint that `pred(X1, ..., Xn)` holds. This is an inefficient constraint:
 /// it won't be checked until _all_ of its elements are known.
-pub struct Pred<T: Debug + PartialEq + Clone + Sized + 'static> {
+pub struct Pred<T: Debug + PartialEq + Clone + Sized + Send + Sync + 'static> {
     num_params: usize,
-    pred: Box<dyn Fn(&[T]) -> bool>,
+    pred: Box<dyn Fn(&[T]) -> bool + Send + Sync + 'static>,
     _phantom: PhantomData<T>,
 }
 
-impl<T: Debug + PartialEq + Clone + Sized + 'static> Pred<T> {
-    pub fn new<const N: usize>(pred: impl Fn(&[T; N]) -> bool + 'static) -> Pred<T> {
+impl<T: Debug + PartialEq + Clone + Sized + Send + Sync + 'static> Pred<T> {
+    pub fn new<const N: usize>(pred: impl Fn(&[T; N]) -> bool + Send + Sync + 'static) -> Pred<T> {
         let pred_generic = move |array: &[T]| -> bool {
             match TryInto::<&[T; N]>::try_into(array) {
                 Ok(array) => pred(array),
@@ -31,7 +31,7 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Pred<T> {
 
     /// Use this instead of `new` if you don't statically know the number of params the predicate
     /// will take.
-    pub fn with_len(len: usize, pred: impl Fn(&[T]) -> bool + 'static) -> Pred<T> {
+    pub fn with_len(len: usize, pred: impl Fn(&[T]) -> bool + Send + Sync + 'static) -> Pred<T> {
         Pred {
             num_params: len,
             pred: Box::new(pred),
@@ -40,7 +40,7 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Pred<T> {
     }
 }
 
-impl<T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<T> {
+impl<T: Debug + PartialEq + Clone + Sized + Send + Sync + 'static> Constraint<T> for Pred<T> {
     const NAME: &'static str = "Pred";
 
     type Set = Vec<Option<T>>;
@@ -88,7 +88,7 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<T> {
     }
 }
 
-impl<T: Debug + PartialEq + Clone + Sized + 'static> fmt::Debug for Pred<T> {
+impl<T: Debug + PartialEq + Clone + Sized + Send + Sync + 'static> fmt::Debug for Pred<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(predicate)")
     }

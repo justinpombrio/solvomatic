@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 const STAR: i32 = -27; // entry representing '*'
 
@@ -186,19 +186,19 @@ impl<'a> Iterator for LayoutParser<'a> {
 #[derive(Debug, Default)]
 struct Data {
     entries: Vec<Entry>,
-    layout: Rc<Layout>,
+    layout: Arc<Layout>,
 }
 
 impl State for Data {
     type Var = usize;
     type Value = i32;
-    type MetaData = Rc<Layout>;
+    type MetaData = Arc<Layout>;
 
     fn set(&mut self, var: usize, val: i32) {
         self.entries[var] = Entry(Some(val));
     }
 
-    fn new(layout: &Rc<Layout>) -> Data {
+    fn new(layout: &Arc<Layout>) -> Data {
         Data {
             entries: vec![Entry(None); layout.whitespace.len() - 1],
             layout: layout.clone(),
@@ -207,7 +207,7 @@ impl State for Data {
 }
 
 impl Data {
-    fn new(input: &str, layout: Rc<Layout>) -> Result<Data, BadInput> {
+    fn new(input: &str, layout: Arc<Layout>) -> Result<Data, BadInput> {
         Ok(Data {
             entries: layout.parse_input(input).collect::<Result<Vec<_>, _>>()?,
             layout,
@@ -318,7 +318,7 @@ impl PuzzleDefinition {
         let mut word_list_loader = WordListLoader::new();
 
         let original_layout = Layout::new(&self.layout);
-        let layout = Rc::new(original_layout.clone());
+        let layout = Arc::new(original_layout.clone());
         let mut solver = Solvomatic::new(layout.clone());
 
         for range in &self.ranges {

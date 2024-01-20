@@ -8,7 +8,7 @@ use std::path::Path;
 /// The constraint that `{X1, ..., Xn}` is a word from a list of allowed words. Or more generally,
 /// that that sequence is present in a list of allowed sequences.
 #[derive(Debug, Clone)]
-pub struct Seq<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+pub struct Seq<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> {
     #[allow(unused)]
     seq_len: usize,
     allowed_seqs: Vec<Vec<T>>,
@@ -38,7 +38,7 @@ impl Seq<char> {
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Seq<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Seq<T> {
     /// Constraint that the sequence is one of the sequences listed in `allowed_seqs`.
     pub fn new(seq_len: usize, allowed_seqs: impl IntoIterator<Item = Vec<T>>) -> Seq<T> {
         let allowed_seqs = allowed_seqs.into_iter().collect::<Vec<_>>();
@@ -62,7 +62,7 @@ pub struct SeqSet {
     count: u128,
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Seq<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Constraint<T> for Seq<T> {
     // Represents a set of possible words. Set[i] iff self.allowed_seqs[i] is in the set.
     type Set = SeqSet;
 

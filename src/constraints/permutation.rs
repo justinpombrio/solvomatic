@@ -8,15 +8,17 @@ use std::hash::Hash;
 
 /// The constraint that `{X1, ..., Xn} ⊆ set`
 #[derive(Debug, Clone)]
-pub struct Subset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static>(Bag<T>);
+pub struct Subset<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static>(Bag<T>);
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Subset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Subset<T> {
     pub fn new(set: impl IntoIterator<Item = T>) -> Subset<T> {
         Subset(Bag::new(set))
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Subset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Constraint<T>
+    for Subset<T>
+{
     type Set = BagRange<T>;
 
     const NAME: &'static str = "Subset";
@@ -44,15 +46,17 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Sub
 
 /// The constraint that `set ⊆ {X1, ..., Xn}`
 #[derive(Debug, Clone)]
-pub struct Superset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static>(Bag<T>);
+pub struct Superset<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static>(Bag<T>);
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Superset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Superset<T> {
     pub fn new(set: impl IntoIterator<Item = T>) -> Superset<T> {
         Superset(Bag::new(set))
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Superset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Constraint<T>
+    for Superset<T>
+{
     type Set = BagRange<T>;
 
     const NAME: &'static str = "Superset";
@@ -80,12 +84,12 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Sup
 
 /// The constraint that `min ⊆ {X1, ..., Xn} ⊆ max`
 #[derive(Debug, Clone)]
-pub struct SubsetAndSuperset<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+pub struct SubsetAndSuperset<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> {
     min: Bag<T>,
     max: Bag<T>,
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> SubsetAndSuperset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> SubsetAndSuperset<T> {
     pub fn new(
         min: impl IntoIterator<Item = T>,
         max: impl IntoIterator<Item = T>,
@@ -97,7 +101,9 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> SubsetAndSuperset<T> 
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for SubsetAndSuperset<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Constraint<T>
+    for SubsetAndSuperset<T>
+{
     type Set = BagRange<T>;
 
     const NAME: &'static str = "SubsetAndSuperset";
@@ -125,11 +131,11 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Sub
 
 /// The constraint that `{X1, ..., Xn} = expected`
 #[derive(Debug, Clone)]
-pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> {
+pub struct Permutation<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> {
     expected: Bag<T>,
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Permutation<T> {
     pub fn new(expected: impl IntoIterator<Item = T>) -> Permutation<T> {
         Permutation {
             expected: Bag::new(expected),
@@ -137,7 +143,9 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Permutation<T> {
     }
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> Constraint<T> for Permutation<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> Constraint<T>
+    for Permutation<T>
+{
     type Set = BagRange<T>;
 
     const NAME: &'static str = "Permutation";
@@ -169,7 +177,7 @@ pub struct BagRange<T: Ord> {
     max: Bag<T>,
 }
 
-impl<T: Debug + Hash + Eq + Ord + Clone + Sized + 'static> BagRange<T> {
+impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> BagRange<T> {
     fn singleton(elem: T) -> BagRange<T> {
         BagRange {
             min: Bag::singleton(elem.clone()),

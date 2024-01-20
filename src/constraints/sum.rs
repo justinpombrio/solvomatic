@@ -4,17 +4,19 @@ use std::ops::Add;
 
 /// The constraint that `X1 + ... + Xn = expected`
 #[derive(Debug, Clone)]
-pub struct Sum<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> {
+pub struct Sum<N: Debug + Add<Output = N> + Ord + Sized + Clone + Send + Sync + 'static> {
     expected: N,
 }
 
-impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> Sum<N> {
+impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + Send + Sync + 'static> Sum<N> {
     pub fn new(expected: N) -> Sum<N> {
         Sum { expected }
     }
 }
 
-impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + 'static> Constraint<N> for Sum<N> {
+impl<N: Debug + Add<Output = N> + Ord + Sized + Clone + Send + Sync + 'static> Constraint<N>
+    for Sum<N>
+{
     /// (min, max)
     type Set = (N, N);
 

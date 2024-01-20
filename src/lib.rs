@@ -53,7 +53,7 @@ pub struct Unsatisfiable<S: State> {
 struct DynConstraint<S: State> {
     name: String,
     params: Vec<S::Var>,
-    apply: Box<dyn Fn(&mut Table<S>) -> Result<bool, ()>>,
+    apply: Box<dyn Fn(&mut Table<S>) -> Result<bool, ()> + Send + Sync + 'static>,
     done: bool,
 }
 
@@ -108,7 +108,7 @@ impl<S: State> Solvomatic<S> {
     pub fn mapped_constraint<N, C: Constraint<N>>(
         &mut self,
         params: impl IntoIterator<Item = S::Var>,
-        map: impl Fn(usize, S::Value) -> N + 'static,
+        map: impl Fn(usize, S::Value) -> N + Send + Sync + 'static,
         constraint: C,
     ) {
         let name = C::NAME.to_owned();
@@ -151,6 +151,8 @@ impl<S: State> Solvomatic<S> {
     /// Apply one step of solving. It's important to `apply_constraints()` _before_ the first step
     /// though!
     fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
+        use rayon::prelude::*;
+
         let start_time = Instant::now();
 
         // Mark completed constraints as done
@@ -159,6 +161,9 @@ impl<S: State> Solvomatic<S> {
         // Merge all constant partitions together
         self.table.merge_constants();
 
+        if self.config.log_states {
+            eprintln!("{}", self.table.display(&self.metadata));
+        }
         if self.config.log_steps {
             eprintln!(
                 "\nNumber of partitions: {:2}, table size = {:4}, possibilities = {}",
@@ -167,12 +172,36 @@ impl<S: State> Solvomatic<S> {
                 self.table.possibilities(),
             );
         }
-        if self.config.log_states {
-            eprintln!("{}", self.table.display(&self.metadata));
-        }
 
         // Consider merging all combinations of two Sections of the table
         if self.table.num_partitions() > 1 {
+            let mut options = Vec::new();
+            for i in 0..self.table.num_partitions() - 1 {
+                for j in i + 1..self.table.num_partitions() {
+                    options.push((i, j));
+                }
+            }
+            let result = options
+                .par_iter()
+                .map(&|(i, j): &(usize, usize)| {
+                    let mut new_table = self.table.clone();
+                    new_table.merge(*i, *j);
+                    self.apply_constraints(new_table)
+                })
+                .reduce_with(|a, b| match (a, b) {
+                    (Err(err), _) | (_, Err(err)) => Err(err),
+                    (Ok(table_a), Ok(table_b)) => {
+                        if table_a.cost() <= table_b.cost() {
+                            Ok(table_a)
+                        } else {
+                            Ok(table_b)
+                        }
+                    }
+                });
+
+            self.table = result.unwrap()?;
+
+            /*
             let mut options = Vec::new();
             for i in 0..self.table.num_partitions() - 1 {
                 for j in i + 1..self.table.num_partitions() {
@@ -192,6 +221,7 @@ impl<S: State> Solvomatic<S> {
                 }
             }
             self.table = best_table;
+            */
         }
 
         // Log how long it took

@@ -11,5 +11,6 @@ opt-level = 3
 [dependencies]
 bitvec = "1.*"
 argh = "0.1"
+rayon = "1.8"
 # TODO
 parser-ll1 = { path = "../experiments/parser-ll1/" }

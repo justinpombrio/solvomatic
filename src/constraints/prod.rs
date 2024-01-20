@@ -6,17 +6,19 @@ use std::ops::Mul;
 /// numbers will lead to either the solver saying there is no answer when there is, or giving bogus
 /// answers.
 #[derive(Debug, Clone)]
-pub struct Prod<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> {
+pub struct Prod<N: Debug + Mul<Output = N> + Ord + Clone + Sized + Send + Sync + 'static> {
     expected: N,
 }
 
-impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Prod<N> {
+impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + Send + Sync + 'static> Prod<N> {
     pub fn new(expected: N) -> Prod<N> {
         Prod { expected }
     }
 }
 
-impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + 'static> Constraint<N> for Prod<N> {
+impl<N: Debug + Mul<Output = N> + Ord + Clone + Sized + Send + Sync + 'static> Constraint<N>
+    for Prod<N>
+{
     /// (min, max)
     type Set = (N, N);
 

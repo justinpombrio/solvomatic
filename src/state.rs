@@ -9,9 +9,9 @@ const TEXT_BOX_WIDTH: usize = 90;
 /// Importantly, not all `Var`s will have a `Value`. The default state should have `None` for all
 /// `Var`s.
 pub trait State: Display + 'static {
-    type Var: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
-    type Value: fmt::Debug + Hash + Eq + Ord + Clone + 'static;
-    type MetaData: Clone;
+    type Var: fmt::Debug + Hash + Eq + Ord + Clone + Send + Sync + 'static;
+    type Value: fmt::Debug + Hash + Eq + Ord + Clone + Send + Sync + 'static;
+    type MetaData: Clone + Send + Sync;
 
     fn new(metadata: &Self::MetaData) -> Self;
 
