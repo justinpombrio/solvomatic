@@ -1,6 +1,6 @@
 //! Some puzzles ask from you a spark of insight, or a delightful recognition.
 //!
-//! For all the others, there's solvOmatic.
+//! For all the others, there's solv-o-matic.
 //!
 //! TODO: Overview and examples
 
@@ -57,27 +57,20 @@ struct DynConstraint<S: State> {
     done: bool,
 }
 
-#[derive(Debug, Clone)]
+// When running `main`, this is loaded from command line args.
+// See `Config` in `main.rs`.
+#[derive(Debug, Clone, Default)]
 pub struct Config {
-    /// Log when each step completed (default true)
+    /// Log after each step that's taken
     pub log_steps: bool,
+    /// Log the list of contraints before solving
+    pub log_constraints: bool,
     /// Log when a constraint is completed
     pub log_completed: bool,
     /// Log how long each step took
     pub log_elapsed: bool,
-    /// Log intermediate states (can be very large!)
+    /// Log intermediate states (these can be very large!)
     pub log_states: bool,
-}
-
-impl Default for Config {
-    fn default() -> Config {
-        Config {
-            log_steps: true,
-            log_completed: false,
-            log_elapsed: false,
-            log_states: false,
-        }
-    }
 }
 
 impl<S: State> Solvomatic<S> {
@@ -120,6 +113,11 @@ impl<S: State> Solvomatic<S> {
     ) {
         let name = C::NAME.to_owned();
         let params = params.into_iter().collect::<Vec<_>>();
+
+        if self.config.log_constraints {
+            eprintln!("Constraint {} on {:?}: {:?}", name, params, constraint);
+        }
+
         let params_copy = params.clone();
         let apply = Box::new(move |table: &mut Table<S>| {
             table.apply_constraint(&params_copy, &map, &constraint)
@@ -143,7 +141,9 @@ impl<S: State> Solvomatic<S> {
         }
         self.table.merge_constants();
 
-        println!("time: {}ms", start_time.elapsed().as_millis());
+        if self.config.log_steps {
+            eprintln!("Total time: {}ms", start_time.elapsed().as_millis());
+        }
 
         Ok(())
     }
@@ -160,7 +160,7 @@ impl<S: State> Solvomatic<S> {
         self.table.merge_constants();
 
         if self.config.log_steps {
-            println!(
+            eprintln!(
                 "\nNumber of partitions: {:2}, table size = {:4}, possibilities = {}",
                 self.table.num_sections(),
                 self.table.size(),
@@ -168,7 +168,7 @@ impl<S: State> Solvomatic<S> {
             );
         }
         if self.config.log_states {
-            println!("{}", self.table.display(&self.metadata));
+            eprintln!("{}", self.table.display(&self.metadata));
         }
 
         // Consider merging all combinations of two Sections of the table
@@ -197,7 +197,7 @@ impl<S: State> Solvomatic<S> {
         // Log how long it took
         if self.config.log_elapsed {
             let elapsed_time = start_time.elapsed().as_millis();
-            println!("  elapsed: {:5?}ms", elapsed_time);
+            eprintln!("  elapsed: {:5?}ms", elapsed_time);
         }
 
         Ok(())

@@ -39,7 +39,7 @@ pub use sum::Sum;
 /// ```
 ///
 /// where `s` is `singleton`, `+` is `or`, and `*` is `and`.
-pub trait Constraint<T>: 'static {
+pub trait Constraint<T>: Debug + 'static {
     /// A "set" of elements. This typically won't actually contain all of the elements! Instead, it
     /// will be a _conservative_ representation. For example, the `Set` for the `Sum` constraint is
     /// a minimum and maximum of the numbers "in the set".

@@ -6,6 +6,7 @@
 
 #![feature(slice_take)]
 
+use argh::FromArgs;
 use parser_ll1::{CompiledParser, Grammar, GrammarError, Parser};
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
@@ -415,6 +416,10 @@ impl PuzzleDefinition {
     }
 }
 
+/************************
+ *     Parser           *
+ ************************/
+
 fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, GrammarError> {
     use parser_ll1::{choice, tuple};
 
@@ -555,23 +560,59 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     g.compile_parser(puzzle_p)
 }
 
-fn main() {
-    use std::env;
+/************************
+ *     Main             *
+ ************************/
 
-    let args = env::args().collect::<Vec<_>>();
-    if args.len() != 2 {
-        panic!("You must pass exactly one argument: the puzzle definition file.")
-    }
-    let filename = &args[1];
+/// solv-o-matic
+#[derive(Debug, Clone, FromArgs)]
+struct Config {
+    /// the puzzle definition file to run
+    #[argh(positional)]
+    filename: String,
+
+    /// don't log anything besides the solution
+    #[argh(switch, short = 'q', long = "quiet")]
+    quiet: bool,
+
+    /// log the list of contraints before solving
+    #[argh(switch, long = "log-constraints")]
+    log_constraints: bool,
+
+    /// log when a constraint is completed
+    #[argh(switch, long = "log-complete")]
+    log_completed: bool,
+
+    /// log how long each step took
+    #[argh(switch, long = "log-elapsed")]
+    log_elapsed: bool,
+
+    /// log intermediate states (these can be very large!)
+    #[argh(switch, long = "log-states")]
+    log_states: bool,
+}
+
+fn main() {
+    let config = argh::from_env::<Config>();
 
     let parser = make_puzzle_parser().unwrap_or_else(|err| panic!("{}", err));
-    let file_contents = fs::read_to_string(filename).unwrap();
+    let file_contents = fs::read_to_string(&config.filename).unwrap();
     let puzzle_definition = parser
-        .parse(filename, &file_contents)
+        .parse(&config.filename, &file_contents)
         .unwrap_or_else(|err| panic!("{}", err));
+
     let mut solver = puzzle_definition
         .make_solver()
         .unwrap_or_else(|err| panic!("{}", err));
+
+    if !config.quiet {
+        solver.config().log_steps = true;
+        solver.config().log_constraints = config.log_constraints;
+        solver.config().log_completed = config.log_completed;
+        solver.config().log_elapsed = config.log_elapsed;
+        solver.config().log_states = config.log_states;
+    }
+
     solver.solve().unwrap_or_else(|err| panic!("{}", err));
     println!("{}", solver.display_table());
 }

@@ -1,4 +1,5 @@
 use super::{Constraint, YesNoMaybe};
+use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -87,8 +88,14 @@ impl<T: Debug + PartialEq + Clone + Sized + 'static> Constraint<T> for Pred<T> {
     }
 }
 
+impl<T: Debug + PartialEq + Clone + Sized + 'static> fmt::Debug for Pred<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "(predicate)")
+    }
+}
+
 #[test]
-fn test_sum() {
+fn test_pred() {
     use YesNoMaybe::{Maybe, No, Yes};
 
     let s = Pred::new(|[a, b]| a < b);
