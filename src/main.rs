@@ -2,7 +2,7 @@
 
 // TODO:
 // - [ ] release 'parser-ll1' at least enough that it can be imported!
-// - [ ] have letters and digits be disjoint?
+// - [x] have letters and digits be disjoint?
 
 #![feature(slice_take)]
 
@@ -253,8 +253,7 @@ impl fmt::Display for BadInput {
 
 #[derive(Debug, Clone)]
 struct PuzzleRange {
-    min: i32,
-    max: i32,
+    possibilities: Vec<i32>,
     data: String,
 }
 
@@ -266,6 +265,7 @@ enum PuzzleRule {
     Permutation(Vec<i32>),
     Superset(Vec<i32>),
     Subset(Vec<i32>),
+    InOrder(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -325,7 +325,7 @@ impl PuzzleDefinition {
             for (i, entry) in data.entries.iter().enumerate() {
                 match entry {
                     Entry(None) => (),
-                    Entry(Some(STAR)) => solver.var(i, range.min..=range.max),
+                    Entry(Some(STAR)) => solver.var(i, range.possibilities.iter().copied()),
                     Entry(Some(n)) => return Err(BadInput::BadRangeEntry(*n)),
                 }
             }
@@ -342,7 +342,7 @@ impl PuzzleDefinition {
                             // entry was a number
                             None
                         } else {
-                            // entry was a letter
+                            // entry was a letter, or '*'
                             Some(entry)
                         };
                         key_to_var_list
@@ -360,6 +360,7 @@ impl PuzzleDefinition {
                 }
             }
             for var_list in var_lists {
+                //println!("Constraint: {:?} {:?}", var_list, &rule.rule);
                 match &rule.rule {
                     PuzzleRule::Sum(sum) => solver.constraint(var_list, Sum::new(*sum)),
                     PuzzleRule::Prod(prod) => solver.constraint(var_list, Prod::new(*prod)),
@@ -375,6 +376,23 @@ impl PuzzleDefinition {
                     }
                     PuzzleRule::Superset(set) => {
                         solver.constraint(var_list, Superset::new(set.iter().copied()))
+                    }
+                    PuzzleRule::InOrder(ascending) => {
+                        let len = var_list.len();
+                        solver.constraint(
+                            var_list,
+                            if *ascending {
+                                Pred::with_len(len, |elems: &[i32]| {
+                                    // Convert letters to numbers
+                                    elems.windows(2).all(|w| w[0].abs() <= w[1].abs())
+                                })
+                            } else {
+                                Pred::with_len(len, |elems: &[i32]| {
+                                    // Convert letters to numbers
+                                    elems.windows(2).all(|w| w[1].abs() <= w[0].abs())
+                                })
+                            },
+                        )
                     }
                 }
             }
@@ -404,7 +422,7 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     let mut g = Grammar::with_whitespace("([ \t\n]+|#[^\n]*\n)+")?;
 
     // A data section is a sequence of lines that all start with '|'
-    let data_p = g.regex("data", "(\\|[^\n]*\n)+")?.span(|span| {
+    let data_p = g.regex("template", "(\\|[^\n]*\n)+")?.span(|span| {
         let mut stripped = String::new();
         for line in span.substr.lines() {
             stripped.push_str(&line[1..]);
@@ -427,22 +445,28 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     let layout_p = tuple("layout", (g.string("layout")?, data_p.clone())).map(|(_, data)| data);
 
     // range min max
-    //   DATA
-    //   ...
     let range_p = tuple(
         "range",
-        (
-            g.string("range")?,
-            entry_p.clone(),
-            entry_p.clone(),
-            data_p.clone(),
-        ),
+        (g.string("range")?, entry_p.clone(), entry_p.clone()),
     )
-    .map(|(_, a, b, data)| PuzzleRange {
-        min: a.min(b),
-        max: a.max(b),
-        data,
+    .map(|(_, a, b)| {
+        let min = a.min(b);
+        let max = a.max(b);
+        (min..=max).collect::<Vec<i32>>()
     });
+    // set entry...
+    let set_p = tuple("set", (g.string("set")?, entry_p.clone().many1())).map(|(_, elems)| elems);
+    // range min max
+    //   DATA
+    //   ...
+    let range_or_set_p = choice("range or set", (range_p, set_p));
+    let range_and_data_p =
+        tuple("range or set", (range_or_set_p, data_p.clone())).map(|(possibilities, data)| {
+            PuzzleRange {
+                possibilities,
+                data,
+            }
+        });
 
     // rule name arg...
     //   DATA
@@ -474,9 +498,23 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     )
     .map(|(_, entries)| PuzzleRule::Superset(entries));
     let word_p = path.preceded(g.string("word")?).map(PuzzleRule::Word);
+    let in_order_p = g.string("in_order")?.constant(PuzzleRule::InOrder(true));
+    let in_reverse_order_p = g
+        .string("in_reverse_order")?
+        .constant(PuzzleRule::InOrder(false));
+
     let rule_p = choice(
-        "rule name ('sum', 'prod', 'word', 'permutation', 'subset', 'supserset')",
-        (sum_p, prod_p, word_p, permutation_p, subset_p, superset_p),
+        "rule name ('sum', 'prod', 'word', 'permutation', 'subset', 'supserset', 'in_order')",
+        (
+            sum_p,
+            prod_p,
+            word_p,
+            permutation_p,
+            subset_p,
+            superset_p,
+            in_order_p,
+            in_reverse_order_p,
+        ),
     );
     let rule_and_datas_p = tuple("rule", (g.string("rule")?, rule_p, data_p.clone().many1()))
         .map(|(_, rule, datas)| PuzzleRuleAndDatas { rule, datas });
@@ -502,7 +540,7 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         "Puzzle definition",
         (
             layout_p,
-            range_p.many1(),
+            range_and_data_p.many1(),
             rule_and_datas_p.many1(),
             initial_p.opt(),
         ),
@@ -521,7 +559,9 @@ fn main() {
     use std::env;
 
     let args = env::args().collect::<Vec<_>>();
-    assert_eq!(args.len(), 2);
+    if args.len() != 2 {
+        panic!("You must pass exactly one argument: the puzzle definition file.")
+    }
     let filename = &args[1];
 
     let parser = make_puzzle_parser().unwrap_or_else(|err| panic!("{}", err));

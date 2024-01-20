@@ -138,7 +138,7 @@ impl<S: State> Solvomatic<S> {
         let start_time = Instant::now();
 
         self.table = self.apply_constraints(self.table.clone())?;
-        while self.table.num_sections() > 1 && self.table.possibilities() > 1 {
+        while self.table.num_sections() > 1 && self.table.possibilities() > 1.0 {
             self.step()?;
         }
         self.table.merge_constants();

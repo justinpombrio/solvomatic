@@ -1,0 +1,73 @@
+# Find all 4x4 associative magic squares
+
+layout
+| * * * *
+| * * * *
+| * * * *
+| * * * *
+
+# Every cell is a number 1..16
+range 1 16
+| * * * *
+| * * * *
+| * * * *
+| * * * *
+
+# The grid is a permutation of 1..16
+rule permutation 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+| * * * *
+| * * * *
+| * * * *
+| * * * *
+
+rule sum 34
+
+# Each row sums to 34
+| a a a a
+| b b b b
+| c c c c
+| d d d d
+
+# as do the columns
+| a b c d
+| a b c d
+| a b c d
+| a b c d
+
+# and the diagonals
+| a . . b
+| . a b .
+| . b a .
+| b . . a
+
+# It's an Associative magic square: opposite squares must all have the same sum.
+rule sum 17
+| a b c d
+| h g f e
+| e f g h
+| d c b a
+
+# WLOG, rotate the magic square so that the upper-left cell is least.
+rule in_order
+| 1 . . 2
+| . . . .
+| . . . .
+| . . . .
+
+| 1 . . .
+| . . . .
+| . . . .
+| 2 . . .
+
+| 1 . . .
+| . . . .
+| . . . .
+| . . . 2
+
+# WLOG, reflect the magic square so that the upper-right cell is less
+# than the lower-left cell.
+
+| . . . 1
+| . . . .
+| . . . .
+| 2 . . .

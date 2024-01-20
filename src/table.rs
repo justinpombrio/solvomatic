@@ -161,10 +161,10 @@ impl<S: State> Table<S> {
     }
 
     /// The total number of possible states that have not yet been ruled out.
-    pub fn possibilities(&self) -> u128 {
-        let mut possibilities = 1;
+    pub fn possibilities(&self) -> f64 {
+        let mut possibilities = 1.0;
         for section in &self.sections {
-            possibilities *= section.tuples.len() as u128;
+            possibilities *= section.tuples.len() as f64;
         }
         possibilities
     }
@@ -392,10 +392,14 @@ impl<'a, S: State> fmt::Display for TableWriter<'a, S> {
 
         let mut sections = self.0.sections.iter();
         let section = match sections.next() {
-            None => return write!(f, "State is empty!"),
+            None => return write!(f, "Solution is empty!"),
             Some(section) => section,
         };
-        writeln!(f, "State is one of {}:", section.tuples.len())?;
+        if self.0.sections.len() == 1 && self.0.sections[0].tuples.len() == 1 {
+            writeln!(f, "Unique solution:")?;
+        } else {
+            writeln!(f, "Solution is one of {}:", section.tuples.len())?;
+        }
         show_section(f, section)?;
         for section in sections {
             writeln!(f)?;
