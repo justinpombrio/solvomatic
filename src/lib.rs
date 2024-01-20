@@ -4,7 +4,7 @@
 //!
 //! TODO: Overview and examples
 
-// I'm I'll for warning against overly complex types, but Clippy is warning on some
+// I'm all for warning against overly complex types, but Clippy is warning on some
 // types that aren't very complicated.
 #![allow(clippy::type_complexity)]
 // No strong feelings on this but it's a reasonable way to write things and it's
@@ -136,7 +136,7 @@ impl<S: State> Solvomatic<S> {
         let start_time = Instant::now();
 
         self.table = self.apply_constraints(self.table.clone())?;
-        while self.table.num_sections() > 1 && self.table.possibilities() > 1.0 {
+        while self.table.num_partitions() > 1 && self.table.possibilities() > 1.0 {
             self.step()?;
         }
         self.table.merge_constants();
@@ -156,13 +156,13 @@ impl<S: State> Solvomatic<S> {
         // Mark completed constraints as done
         self.mark_completed_constraints();
 
-        // Merge all constant sections together
+        // Merge all constant partitions together
         self.table.merge_constants();
 
         if self.config.log_steps {
             eprintln!(
                 "\nNumber of partitions: {:2}, table size = {:4}, possibilities = {}",
-                self.table.num_sections(),
+                self.table.num_partitions(),
                 self.table.size(),
                 self.table.possibilities(),
             );
@@ -172,10 +172,10 @@ impl<S: State> Solvomatic<S> {
         }
 
         // Consider merging all combinations of two Sections of the table
-        if self.table.num_sections() > 1 {
+        if self.table.num_partitions() > 1 {
             let mut options = Vec::new();
-            for i in 0..self.table.num_sections() - 1 {
-                for j in i + 1..self.table.num_sections() {
+            for i in 0..self.table.num_partitions() - 1 {
+                for j in i + 1..self.table.num_partitions() {
                     let mut new_table = self.table.clone();
                     new_table.merge(i, j);
                     new_table = self.apply_constraints(new_table)?;
@@ -183,7 +183,7 @@ impl<S: State> Solvomatic<S> {
                 }
             }
 
-            // Merge the two sections that minimize the resulting table size
+            // Merge the two partitions that minimize the resulting table size
             let mut tables = options.into_iter();
             let mut best_table = tables.next().unwrap();
             for table in tables {

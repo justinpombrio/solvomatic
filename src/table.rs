@@ -6,7 +6,7 @@ use std::fmt;
 /// A state of knowledge about the `Value`s that a set of `Var`s might have, represented as a cross
 /// product of unions of tuples.
 ///
-/// You can think of this as a Table made of Sections. For example, this Table:
+/// You can think of this as a Table made of Partitions. For example, this Table:
 ///
 /// ```text
 ///     A C | B | D E F
@@ -23,7 +23,7 @@ use std::fmt;
 ///  - B is between 1 and 4 inclusive.
 ///  - D=7, E=8, and F=9
 ///
-/// The table has three sections `(AC, B, DEF)`, and it represents 12 possible states:
+/// The table has three partitions `(AC, B, DEF)`, and it represents 12 possible states:
 ///
 /// ```text
 ///     A C B D E F
@@ -43,12 +43,12 @@ use std::fmt;
 /// ```
 #[derive(Debug)]
 pub struct Table<S: State> {
-    sections: Vec<Section<S>>,
+    partitions: Vec<Partition<S>>,
 }
 
-/// One section of a table.
+/// One partition of a table.
 #[derive(Debug)]
-struct Section<S: State> {
+struct Partition<S: State> {
     header: Vec<S::Var>,
     tuples: Vec<Vec<S::Value>>,
 }
@@ -63,17 +63,17 @@ impl<S: State> Table<S> {
     /// Construct an empty table.
     pub fn new() -> Table<S> {
         Table {
-            sections: Vec::new(),
+            partitions: Vec::new(),
         }
     }
 
-    /// Add a new column to the table. It will be its own Section.
+    /// Add a new column to the table. It will be its own Partition.
     pub fn add_column(&mut self, x: S::Var, vals: impl IntoIterator<Item = S::Value>) {
         let vals = vals.into_iter().collect::<Vec<_>>();
         if vals.is_empty() {
             panic!("Empty range given for variable {:?}", x);
         }
-        self.sections.push(Section {
+        self.partitions.push(Partition {
             header: vec![x],
             tuples: map_vec(vals, |v| vec![v]),
         });
@@ -83,7 +83,7 @@ impl<S: State> Table<S> {
     /// elements of those columns, and `constraint` is a constraint that those mapped elements must
     /// obey. Remove table rows (tuples) that violate this constraint.
     ///
-    /// `Err` if some section runs out of tuples (i.e. number of possibilities becomes zero).
+    /// `Err` if some partition runs out of tuples (i.e. number of possibilities becomes zero).
     ///
     /// Returns `Ok(true)` if the constraint _always_ holds, and can thus be dropped. Otherwise
     /// `Ok(false)`.
@@ -93,11 +93,11 @@ impl<S: State> Table<S> {
         map: &impl Fn(usize, S::Value) -> N,
         constraint: &C,
     ) -> Result<bool, ()> {
-        // For each section#i present in the projection, compute (i, prods, sum)
+        // For each partition#i present in the projection, compute (i, prods, sum)
         // where `prod` is the product(and) of each tuple, and `sum` is the sum(or) of those prods.
         let mut partial_sums = Vec::new();
-        for (i, subsection) in self.project(params) {
-            let (prods, sum) = subsection.apply_constraint(params, map, constraint);
+        for (i, subpartition) in self.project(params) {
+            let (prods, sum) = subpartition.apply_constraint(params, map, constraint);
             partial_sums.push((i, prods, sum));
         }
         assert!(!partial_sums.is_empty());
@@ -133,7 +133,7 @@ impl<S: State> Table<S> {
             all_but_one_prods.push(prod);
         }
 
-        // For each tuple in each section, combine that tuple's prod with the all_but_one_prod, and
+        // For each tuple in each partition, combine that tuple's prod with the all_but_one_prod, and
         // check if that obeys the constraint.
         let mut keep_lists: Vec<(usize, Vec<bool>)> = Vec::new();
         for (i, (j, prods, _)) in partial_sums.into_iter().enumerate() {
@@ -149,13 +149,13 @@ impl<S: State> Table<S> {
         Ok(false)
     }
 
-    /// A measure of the size of this table: the sum of the number of rows in each section. The
-    /// number of possibilities is the _product_ of the number of rows in each section, so the
+    /// A measure of the size of this table: the sum of the number of rows in each partition. The
+    /// number of possibilities is the _product_ of the number of rows in each partition, so the
     /// `size` can be exponentially smaller.
     pub fn size(&self) -> u64 {
         let mut size = 0;
-        for section in &self.sections {
-            size += section.tuples.len() as u64 - 1;
+        for partition in &self.partitions {
+            size += partition.tuples.len() as u64 - 1;
         }
         size
     }
@@ -163,8 +163,8 @@ impl<S: State> Table<S> {
     /// The total number of possible states that have not yet been ruled out.
     pub fn possibilities(&self) -> f64 {
         let mut possibilities = 1.0;
-        for section in &self.sections {
-            possibilities *= section.tuples.len() as f64;
+        for partition in &self.partitions {
+            possibilities *= partition.tuples.len() as f64;
         }
         possibilities
     }
@@ -178,94 +178,94 @@ impl<S: State> Table<S> {
 
     /// The total number of columns this table has.
     pub fn num_columns(&self) -> usize {
-        self.sections.iter().map(|s| s.header.len()).sum()
+        self.partitions.iter().map(|s| s.header.len()).sum()
     }
 
-    /// The number of sections this table has.
-    pub fn num_sections(&self) -> usize {
-        self.sections.len()
+    /// The number of partitions this table has.
+    pub fn num_partitions(&self) -> usize {
+        self.partitions.len()
     }
 
-    /// Merge all constant sections (those of height 1) together.
+    /// Merge all constant partitions (those of height 1) together.
     pub fn merge_constants(&mut self) {
-        let mut const_secs = Vec::new();
-        for (i, sec) in self.sections.iter().enumerate() {
-            if sec.tuples.len() == 1 {
-                const_secs.push(i);
+        let mut const_parts = Vec::new();
+        for (i, part) in self.partitions.iter().enumerate() {
+            if part.tuples.len() == 1 {
+                const_parts.push(i);
             }
         }
-        if const_secs.len() <= 1 {
+        if const_parts.len() <= 1 {
             return;
         }
 
-        for i in (0..const_secs.len() - 1).rev() {
-            // Relying on the merge being put back at index `const_secs[i]`!
-            self.merge(const_secs[i], const_secs[i + 1]);
+        for i in (0..const_parts.len() - 1).rev() {
+            // Relying on the merge being put back at index `const_parts[i]`!
+            self.merge(const_parts[i], const_parts[i + 1]);
         }
     }
 
-    /// Merge two table sections (identified by index) together. Places the merged section at the
-    /// index `sec_1.min(sec_2)`.
-    pub fn merge(&mut self, sec_1: usize, sec_2: usize) {
-        let (sec_1, sec_2) = (sec_1.min(sec_2), sec_1.max(sec_2));
-        let section_2 = self.sections.remove(sec_2);
-        let section_1 = self.sections.remove(sec_1);
+    /// Merge two table partitions (identified by index) together. Places the merged partition at the
+    /// index `part_1.min(part_2)`.
+    pub fn merge(&mut self, part_1: usize, part_2: usize) {
+        let (part_1, part_2) = (part_1.min(part_2), part_1.max(part_2));
+        let partition_2 = self.partitions.remove(part_2);
+        let partition_1 = self.partitions.remove(part_1);
 
-        let mut header = section_1.header;
-        header.extend(section_2.header);
+        let mut header = partition_1.header;
+        header.extend(partition_2.header);
 
         let mut tuples = Vec::new();
-        for tuple_1 in section_1.tuples {
-            for tuple_2 in &section_2.tuples {
+        for tuple_1 in partition_1.tuples {
+            for tuple_2 in &partition_2.tuples {
                 let mut tuple = tuple_1.clone();
                 tuple.extend(tuple_2.clone());
                 tuples.push(tuple);
             }
         }
 
-        self.sections.insert(sec_1, Section { header, tuples });
+        self.partitions.insert(part_1, Partition { header, tuples });
     }
 
-    /// Construct new sections that are limited to the columns present in `params` and also in
-    /// `self`. Return these new sections together with the index of the section they came from.
-    /// Each new section has the same number of tuples, in the same order, as the section it came
-    /// from. (This way a `keep_list` constructed from the new section can safely be applied to the
-    /// original section.)
-    fn project(&self, params: &[S::Var]) -> Vec<(usize, Section<S>)> {
-        let mut sections = Vec::new();
-        for (section_index, section) in self.sections.iter().enumerate() {
-            if let Some(subsection) = section.project(params) {
-                sections.push((section_index, subsection));
+    /// Construct new partitions that are limited to the columns present in `params` and also in
+    /// `self`. Return these new partitions together with the index of the partition they came from.
+    /// Each new partition has the same number of tuples, in the same order, as the partition it came
+    /// from. (This way a `keep_list` constructed from the new partition can safely be applied to the
+    /// original partition.)
+    fn project(&self, params: &[S::Var]) -> Vec<(usize, Partition<S>)> {
+        let mut partitions = Vec::new();
+        for (partition_index, partition) in self.partitions.iter().enumerate() {
+            if let Some(subpartition) = partition.project(params) {
+                partitions.push((partition_index, subpartition));
             }
         }
-        sections
+        partitions
     }
 
     /// Discard tuples such that:
     ///
     /// ```text
     ///     for some (i, keep_list) in keep_lists:
-    ///         self.sections[i].tuples[j] not in keep_list
+    ///         self.partitions[i].tuples[j] not in keep_list
     /// ```
     ///
     /// `Err` iff any tuple list becomes empty (i.e. `possibilities()` becomes 0).
     fn retain(&mut self, keep_lists: Vec<(usize, Vec<bool>)>) -> Result<(), ()> {
-        for (section_index, keep_list) in keep_lists {
-            self.sections[section_index].retain(keep_list)?;
+        for (partition_index, keep_list) in keep_lists {
+            self.partitions[partition_index].retain(keep_list)?;
         }
         Ok(())
     }
 }
 
-impl<S: State> Section<S> {
-    /// Construct a `Section` using only the columns present in `params`. Return `None` if there
+impl<S: State> Partition<S> {
+    /// Construct a `Partition` using only the columns present in `params`. Return `None` if there
     /// would be zero columns.
-    fn project(&self, params: &[S::Var]) -> Option<Section<S>> {
+    fn project(&self, params: &[S::Var]) -> Option<Partition<S>> {
         let (subheader, mapping) = project_header::<S>(&self.header, params)?;
         let subtuples = map_vec(&self.tuples, |tuple| {
             map_vec(&mapping, |i| tuple[*i].clone())
         });
-        Some(Section {
+        Some(Partition {
             header: subheader,
             tuples: subtuples,
         })
@@ -320,7 +320,7 @@ impl<S: State> Section<S> {
     }
 }
 
-/// Let `subheader` be the intersection of `header_1` and `header_2`. If `subheader` is empty,
+/// Let `subheader` be the interpartition of `header_1` and `header_2`. If `subheader` is empty,
 /// return None. Otherwise return `(subheader, mapping)`, where `subheader[i] =
 /// header_1[mapping[i]]`.
 fn project_header<S: State>(
@@ -343,9 +343,9 @@ fn map_vec<A, B>(vec: impl IntoIterator<Item = A>, f: impl Fn(A) -> B) -> Vec<B>
     vec.into_iter().map(f).collect::<Vec<_>>()
 }
 
-impl<S: State> Clone for Section<S> {
-    fn clone(&self) -> Section<S> {
-        Section {
+impl<S: State> Clone for Partition<S> {
+    fn clone(&self) -> Partition<S> {
+        Partition {
             header: self.header.clone(),
             tuples: self.tuples.clone(),
         }
@@ -355,7 +355,7 @@ impl<S: State> Clone for Section<S> {
 impl<S: State> Clone for Table<S> {
     fn clone(&self) -> Table<S> {
         Table {
-            sections: self.sections.clone(),
+            partitions: self.partitions.clone(),
         }
     }
 }
@@ -378,33 +378,33 @@ impl<'a, S: State> fmt::Display for TableWriter<'a, S> {
             state
         };
 
-        let show_section = |f: &mut fmt::Formatter, section: &Section<S>| -> fmt::Result {
+        let show_partition = |f: &mut fmt::Formatter, partition: &Partition<S>| -> fmt::Result {
             let mut states = Vec::new();
-            if section.tuples.len() == 1 {
-                states.push(tuple_to_state(&section.header, &section.tuples[0]));
+            if partition.tuples.len() == 1 {
+                states.push(tuple_to_state(&partition.header, &partition.tuples[0]));
             } else {
-                for tuple in &section.tuples {
-                    states.push(tuple_to_state(&section.header, tuple));
+                for tuple in &partition.tuples {
+                    states.push(tuple_to_state(&partition.header, tuple));
                 }
             }
             write!(f, "{}", StateSet(states))
         };
 
-        let mut sections = self.0.sections.iter();
-        let section = match sections.next() {
+        let mut partitions = self.0.partitions.iter();
+        let partition = match partitions.next() {
             None => return write!(f, "Solution is empty!"),
-            Some(section) => section,
+            Some(partition) => partition,
         };
-        if self.0.sections.len() == 1 && self.0.sections[0].tuples.len() == 1 {
+        if self.0.partitions.len() == 1 && self.0.partitions[0].tuples.len() == 1 {
             writeln!(f, "Unique solution:")?;
         } else {
-            writeln!(f, "Solution is one of {}:", section.tuples.len())?;
+            writeln!(f, "Solution is one of {}:", partition.tuples.len())?;
         }
-        show_section(f, section)?;
-        for section in sections {
+        show_partition(f, partition)?;
+        for partition in partitions {
             writeln!(f)?;
-            writeln!(f, "and one of {}:", section.tuples.len())?;
-            show_section(f, section)?;
+            writeln!(f, "and one of {}:", partition.tuples.len())?;
+            show_partition(f, partition)?;
         }
         Ok(())
     }
