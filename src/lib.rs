@@ -15,11 +15,8 @@ mod state;
 mod table;
 
 // TODO:
-// - printing: show column grouping?
-// - printing: log vs. stdout? Stdout vs. stderr?
 // - more constraints!
 // - testing!
-// - command line args, including `--log` that prints after each step
 // - skyscraper constraints
 
 use constraints::Constraint;
@@ -200,28 +197,6 @@ impl<S: State> Solvomatic<S> {
                 });
 
             self.table = result.unwrap()?;
-
-            /*
-            let mut options = Vec::new();
-            for i in 0..self.table.num_partitions() - 1 {
-                for j in i + 1..self.table.num_partitions() {
-                    let mut new_table = self.table.clone();
-                    new_table.merge(i, j);
-                    new_table = self.apply_constraints(new_table)?;
-                    options.push(new_table);
-                }
-            }
-
-            // Merge the two partitions that minimize the resulting table size
-            let mut tables = options.into_iter();
-            let mut best_table = tables.next().unwrap();
-            for table in tables {
-                if table.cost() < best_table.cost() {
-                    best_table = table;
-                }
-            }
-            self.table = best_table;
-            */
         }
 
         // Log how long it took
