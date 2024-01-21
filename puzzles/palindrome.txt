@@ -3,7 +3,7 @@
 layout
 |  *****
 
-range a z
+range a..z
 |  *****
 
 rule word /usr/share/dict/words

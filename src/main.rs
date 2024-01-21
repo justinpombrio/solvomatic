@@ -445,39 +445,50 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         .try_span(|span| i32::from_str(span.substr));
     let entry_p = choice("letter or numeral", (letter_p, numeral_p));
 
+    // An entry set is a set of entries and `entry .. entry` ranges.
+    let entry_range_p = tuple(
+        "letter/numeral range",
+        (
+            entry_p.clone(),
+            entry_p.clone().preceded(g.string("..")?).opt(),
+        ),
+    )
+    .map(|(a, opt_b)| {
+        if let Some(b) = opt_b {
+            let min = a.min(b);
+            let max = a.max(b);
+            (min..=max).collect::<Vec<i32>>()
+        } else {
+            vec![a]
+        }
+    });
+    let entry_set_p = entry_range_p
+        .clone()
+        .fold_many1(entry_range_p, |mut vec1, vec2| {
+            vec1.extend(vec2);
+            vec1
+        });
+
     // layout
     //   DATA
     let layout_p = tuple("layout", (g.string("layout")?, data_p.clone())).map(|(_, data)| data);
 
-    // range min max
-    let range_p = tuple(
-        "range",
-        (g.string("range")?, entry_p.clone(), entry_p.clone()),
-    )
-    .map(|(_, a, b)| {
-        let min = a.min(b);
-        let max = a.max(b);
-        (min..=max).collect::<Vec<i32>>()
-    });
-    // set entry...
-    let set_p = tuple("set", (g.string("set")?, entry_p.clone().many1())).map(|(_, elems)| elems);
-    // range min max
+    // range arg...
+    let range_p = entry_set_p.clone().preceded(g.string("range")?);
+    // range arg...
     //   DATA
     //   ...
-    let range_or_set_p = choice("range or set", (range_p, set_p));
     let range_and_data_p =
-        tuple("range or set", (range_or_set_p, data_p.clone())).map(|(possibilities, data)| {
-            PuzzleRange {
-                possibilities,
-                data,
-            }
+        tuple("range", (range_p, data_p.clone())).map(|(possibilities, data)| PuzzleRange {
+            possibilities,
+            data,
         });
 
     // rule name arg...
     //   DATA
     //   ...
     let path = g
-        .regex("path", "[/a-zA-Z0-9.-]+")?
+        .regex("path", "([/a-zA-Z0-9-]|\\.[a-zA-Z])+")?
         .span(|span| span.substr.to_owned());
     let sum_p = entry_p
         .clone()
@@ -489,17 +500,14 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         .map(|entry| PuzzleRule::Prod(entry));
     let permutation_p = tuple(
         "permutation rule",
-        (g.string("permutation")?, entry_p.clone().many1()),
+        (g.string("permutation")?, entry_set_p.clone()),
     )
     .map(|(_, entries)| PuzzleRule::Permutation(entries));
-    let subset_p = tuple(
-        "subset rule",
-        (g.string("subset")?, entry_p.clone().many1()),
-    )
-    .map(|(_, entries)| PuzzleRule::Subset(entries));
+    let subset_p = tuple("subset rule", (g.string("subset")?, entry_set_p.clone()))
+        .map(|(_, entries)| PuzzleRule::Subset(entries));
     let superset_p = tuple(
         "superset rule",
-        (g.string("superset")?, entry_p.clone().many1()),
+        (g.string("superset")?, entry_set_p.clone()),
     )
     .map(|(_, entries)| PuzzleRule::Superset(entries));
     let word_p = path.preceded(g.string("word")?).map(PuzzleRule::Word);

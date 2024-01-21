@@ -7,19 +7,21 @@ layout
 | ****
 
 # Every cell is a letter, and the diagonals must be vowels.
-range a z
+
+range a..z
 | .**.
 | *..*
 | *..*
 | .**.
 
-set a e i o u
+range a e i o u
 | *..*
 | .**.
 | .**.
 | *..*
 
 # Every row and col forms a word.
+
 rule word /usr/share/dict/words
 | aaaa
 | bbbb
@@ -33,6 +35,7 @@ rule word /usr/share/dict/words
 
 # Without loss of generality, reflect the word square so that
 # the upper-right cell is less than the lower-left cell.
+
 rule in_order
 | ...1
 | ....
