@@ -270,8 +270,8 @@ enum PuzzleRule {
 }
 
 #[derive(Debug, Clone)]
-struct PuzzleRuleAndDatas {
-    rule: PuzzleRule,
+struct PuzzleRuleSet {
+    rules: Vec<PuzzleRule>,
     datas: Vec<String>,
 }
 
@@ -279,7 +279,7 @@ struct PuzzleRuleAndDatas {
 struct PuzzleDefinition {
     layout: String,
     ranges: Vec<PuzzleRange>,
-    rules: Vec<PuzzleRuleAndDatas>,
+    rule_sets: Vec<PuzzleRuleSet>,
     initial: Option<String>,
 }
 
@@ -332,9 +332,9 @@ impl PuzzleDefinition {
             }
         }
 
-        for rule in &self.rules {
+        for rule_set in &self.rule_sets {
             let mut var_lists = Vec::new();
-            for data in &rule.datas {
+            for data in &rule_set.datas {
                 let mut key_to_var_list = HashMap::new();
                 let data = Data::new(data, layout.clone())?;
                 for (i, entry) in data.entries.iter().enumerate() {
@@ -361,39 +361,41 @@ impl PuzzleDefinition {
                 }
             }
             for var_list in var_lists {
-                //println!("Constraint: {:?} {:?}", var_list, &rule.rule);
-                match &rule.rule {
-                    PuzzleRule::Sum(sum) => solver.constraint(var_list, Sum::new(*sum)),
-                    PuzzleRule::Prod(prod) => solver.constraint(var_list, Prod::new(*prod)),
-                    PuzzleRule::Word(path) => {
-                        let words = word_list_loader.load(path, var_list.len());
-                        solver.constraint(var_list, words);
-                    }
-                    PuzzleRule::Permutation(permutation) => {
-                        solver.constraint(var_list, Permutation::new(permutation.iter().copied()))
-                    }
-                    PuzzleRule::Subset(set) => {
-                        solver.constraint(var_list, Subset::new(set.iter().copied()))
-                    }
-                    PuzzleRule::Superset(set) => {
-                        solver.constraint(var_list, Superset::new(set.iter().copied()))
-                    }
-                    PuzzleRule::InOrder(ascending) => {
-                        let len = var_list.len();
-                        solver.constraint(
-                            var_list,
-                            if *ascending {
-                                Pred::with_len(len, |elems: &[i32]| {
-                                    // Convert letters to numbers
-                                    elems.windows(2).all(|w| w[0].abs() <= w[1].abs())
-                                })
-                            } else {
-                                Pred::with_len(len, |elems: &[i32]| {
-                                    // Convert letters to numbers
-                                    elems.windows(2).all(|w| w[1].abs() <= w[0].abs())
-                                })
-                            },
-                        )
+                for rule in &rule_set.rules {
+                    let vars = var_list.iter().copied();
+                    match rule {
+                        PuzzleRule::Sum(sum) => solver.constraint(vars, Sum::new(*sum)),
+                        PuzzleRule::Prod(prod) => solver.constraint(vars, Prod::new(*prod)),
+                        PuzzleRule::Word(path) => {
+                            let words = word_list_loader.load(path, var_list.len());
+                            solver.constraint(vars, words);
+                        }
+                        PuzzleRule::Permutation(permutation) => {
+                            solver.constraint(vars, Permutation::new(permutation.iter().copied()))
+                        }
+                        PuzzleRule::Subset(set) => {
+                            solver.constraint(vars, Subset::new(set.iter().copied()))
+                        }
+                        PuzzleRule::Superset(set) => {
+                            solver.constraint(vars, Superset::new(set.iter().copied()))
+                        }
+                        PuzzleRule::InOrder(ascending) => {
+                            let len = var_list.len();
+                            solver.constraint(
+                                vars,
+                                if *ascending {
+                                    Pred::with_len(len, |elems: &[i32]| {
+                                        // Convert letters to numbers
+                                        elems.windows(2).all(|w| w[0].abs() <= w[1].abs())
+                                    })
+                                } else {
+                                    Pred::with_len(len, |elems: &[i32]| {
+                                        // Convert letters to numbers
+                                        elems.windows(2).all(|w| w[1].abs() <= w[0].abs())
+                                    })
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -529,8 +531,9 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
             in_reverse_order_p,
         ),
     );
-    let rule_and_datas_p = tuple("rule", (g.string("rule")?, rule_p, data_p.clone().many1()))
-        .map(|(_, rule, datas)| PuzzleRuleAndDatas { rule, datas });
+    let rules_p = rule_p.preceded(g.string("rule")?).many1();
+    let rule_set_p = tuple("rules", (rules_p, data_p.clone().many1()))
+        .map(|(rules, datas)| PuzzleRuleSet { rules, datas });
 
     // initial
     //   DATA
@@ -554,14 +557,14 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
         (
             layout_p,
             range_and_data_p.many1(),
-            rule_and_datas_p.many1(),
+            rule_set_p.many1(),
             initial_p.opt(),
         ),
     )
-    .map(|(layout, ranges, rules, initial)| PuzzleDefinition {
+    .map(|(layout, ranges, rule_sets, initial)| PuzzleDefinition {
         layout,
         ranges,
-        rules,
+        rule_sets,
         initial,
     });
 

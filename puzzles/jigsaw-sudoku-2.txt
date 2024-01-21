@@ -33,7 +33,7 @@ range 1..9
 |  | * * * | * * * | * * * |
 |  +-------+-------+-------+
 
-rule permutation 1 2 3 4 5 6 7 8 9
+rule permutation 1..9
 |  +-------+-------+-------+
 |  | a a a | a a a | a a a |
 |  | b b b | b b b | b b b |
@@ -76,23 +76,8 @@ rule permutation 1 2 3 4 5 6 7 8 9
 |  | g g g | h h h | i i i |
 |  +-------+-------+-------+
 
-rule superset 1 2 3 4 5 6 7 8 9
-
-|  +-------+-------+-------+
-|  | b b b | d d d | d d d |
-|  | b c b | b b d | d e f |
-|  | b c c | c b b | d e f |
-|  +-------+-------+-------+
-|  | b b c | g g g | d e f |
-|  | c c c | g i i | d e f |
-|  | c c g | g g i | i e f |
-|  +-------+-------+-------+
-|  | h g g | i i i | e e f |
-|  | h h h | i i e | e e f |
-|  | h h h | h h h | e f f |
-|  +-------+-------+-------+
-
-rule subset 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9
+rule superset 1..9
+rule subset 1..9 1..9
 
 |  +-------+-------+-------+
 |  | b b b | d d d | d d d |
