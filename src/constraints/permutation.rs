@@ -187,8 +187,8 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> BagRang
 
     fn and(self, other: BagRange<T>) -> BagRange<T> {
         BagRange {
-            min: self.min.union(other.min),
-            max: self.max.union(other.max),
+            min: self.min.sum(other.min),
+            max: self.max.sum(other.max),
         }
     }
 
@@ -256,18 +256,53 @@ impl<T: Ord> Bag<T> {
         Bag(elems)
     }
 
-    fn union(self, other: Bag<T>) -> Bag<T> {
-        let mut union = Vec::new();
+    fn sum(self, other: Bag<T>) -> Bag<T> {
+        let mut sum = Vec::new();
         let mut other_iter = other.0.into_iter().peekable();
 
         for x in self.0 {
             while other_iter.peek().is_some() && *other_iter.peek().unwrap() <= x {
-                union.push(other_iter.next().unwrap());
+                sum.push(other_iter.next().unwrap());
             }
-            union.push(x);
+            sum.push(x);
         }
-        union.extend(other_iter);
+        sum.extend(other_iter);
 
+        Bag(sum)
+    }
+
+    fn union(self, other: Bag<T>) -> Bag<T> {
+        let mut union = Vec::new();
+
+        let mut iter_1 = self.0.into_iter().peekable();
+        let mut iter_2 = other.0.into_iter().peekable();
+
+        loop {
+            match (iter_1.peek(), iter_2.peek()) {
+                (None, None) => break,
+                (Some(_), None) => {
+                    let elem = iter_1.next().unwrap();
+                    union.push(elem);
+                }
+                (None, Some(_)) => {
+                    let elem = iter_2.next().unwrap();
+                    union.push(elem);
+                }
+                (Some(x), Some(y)) if x < y => {
+                    let elem = iter_1.next().unwrap();
+                    union.push(elem);
+                }
+                (Some(x), Some(y)) if x > y => {
+                    let elem = iter_2.next().unwrap();
+                    union.push(elem);
+                }
+                (Some(_), Some(_)) => {
+                    let elem = iter_1.next().unwrap();
+                    iter_2.next();
+                    union.push(elem);
+                }
+            }
+        }
         Bag(union)
     }
 
@@ -317,7 +352,8 @@ fn test_bag() {
         bag.0.into_iter().collect::<String>()
     }
 
-    assert_eq!(show(bag("aabeeg").union(bag("abbcf"))), "aaabbbceefg");
+    assert_eq!(show(bag("aabeeg").sum(bag("abbcf"))), "aaabbbceefg");
+    assert_eq!(show(bag("aabeeg").union(bag("abbcf"))), "aabbceefg");
     assert_eq!(show(bag("abbcdff").intersection(bag("bceeffg"))), "bcff");
     assert!(bag("ace").is_subset(&bag("abccde")));
     assert!(!bag("ace").is_subset(&bag("abde")));
