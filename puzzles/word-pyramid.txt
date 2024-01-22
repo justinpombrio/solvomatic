@@ -1,0 +1,27 @@
+layout
+|     /*\
+|    /* *\
+|   /* * *\
+|  /* * * *\
+
+range a..z
+|     /*\
+|    /* *\
+|   /* * *\
+|  /* * * *\
+
+rule word /usr/share/dict/words
+|     /.\
+|    /b b\
+|   /c c c\
+|  /d d d d\
+
+|     /a\
+|    /b a\
+|   /c b a\
+|  /. c b a\
+
+|     /a\
+|    /a b\
+|   /a b c\
+|  /a b c .\

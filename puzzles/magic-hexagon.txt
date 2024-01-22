@@ -1,0 +1,80 @@
+# Find the unique order 3 magic hexagon
+# https://en.wikipedia.org/wiki/Magic_hexagon
+# This takes a very long time to run, but it does find the unique solution.
+
+layout
+|   * * *
+|  * * * *
+| * * * * *
+|  * * * *
+|   * * *
+
+range 1..19
+|   * * *
+|  * * * *
+| * * * * *
+|  * * * *
+|   * * *
+
+rule permutation 1..19
+|   * * *
+|  * * * *
+| * * * * *
+|  * * * *
+|   * * *
+
+rule sum 38
+|   a a a
+|  b b b b
+| c c c c c
+|  d d d d
+|   e e e
+
+|   a b c
+|  a b c d
+| a b c d e
+|  b c d e
+|   c d e
+
+|   c b a
+|  d c b a
+| e d c b a
+|  e d c b
+|   e d c
+
+rule in_order
+|   1 . 2
+|  . . . .
+| . . . . .
+|  . . . .
+|   . . .
+
+|   1 . .
+|  . . . .
+| . . . . 2
+|  . . . .
+|   . . .
+
+|   1 . .
+|  . . . .
+| . . . . .
+|  . . . .
+|   . . 2
+
+|   1 . .
+|  . . . .
+| . . . . .
+|  . . . .
+|   2 . .
+
+|   1 . .
+|  . . . .
+| 2 . . . .
+|  . . . .
+|   . . .
+
+|   . . 1
+|  . . . .
+| 2 . . . .
+|  . . . .
+|   . . .
