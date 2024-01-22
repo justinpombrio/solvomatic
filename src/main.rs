@@ -312,7 +312,7 @@ impl WordListLoader {
 }
 
 impl PuzzleDefinition {
-    fn make_solver(self) -> Result<Solvomatic<Data>, BadInput> {
+    fn make_solver(self, config: Config) -> Result<Solvomatic<Data>, BadInput> {
         use solvomatic::constraints::{Permutation, Pred, Prod, Subset, Sum, Superset};
 
         let mut word_list_loader = WordListLoader::new();
@@ -320,6 +320,14 @@ impl PuzzleDefinition {
         let original_layout = Layout::new(&self.layout);
         let layout = Arc::new(original_layout.clone());
         let mut solver = Solvomatic::new(layout.clone());
+
+        if !config.quiet {
+            solver.config().log_steps = true;
+            solver.config().log_constraints = config.log_constraints;
+            solver.config().log_completed = config.log_completed;
+            solver.config().log_elapsed = config.log_elapsed;
+            solver.config().log_states = config.log_states;
+        }
 
         for range in &self.ranges {
             let data = Data::new(&range.data, layout.clone())?;
@@ -613,16 +621,8 @@ fn main() {
         .unwrap_or_else(|err| panic!("{}", err));
 
     let mut solver = puzzle_definition
-        .make_solver()
+        .make_solver(config)
         .unwrap_or_else(|err| panic!("{}", err));
-
-    if !config.quiet {
-        solver.config().log_steps = true;
-        solver.config().log_constraints = config.log_constraints;
-        solver.config().log_completed = config.log_completed;
-        solver.config().log_elapsed = config.log_elapsed;
-        solver.config().log_states = config.log_states;
-    }
 
     solver.solve().unwrap_or_else(|err| panic!("{}", err));
     println!("{}", solver.display_table());
