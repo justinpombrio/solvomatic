@@ -5,15 +5,17 @@ use std::hash::Hash;
 const TEXT_BOX_PADDING: usize = 4;
 
 /// The state for some kind of puzzle. It maps `Var` to `Value`, and can be nicely `Display`ed.
-/// Importantly, not all `Var`s will have a `Value`. The default state should have `None` for all
-/// `Var`s.
+/// Importantly, not all `Var`s will have a `Value`.
 pub trait State: Display + 'static {
     type Var: fmt::Debug + Hash + Eq + Ord + Clone + Send + Sync + 'static;
     type Value: fmt::Debug + Hash + Eq + Ord + Clone + Send + Sync + 'static;
+    /// For most implementations, this can just be ().
     type MetaData: Clone + Send + Sync;
 
+    /// Construct a new State, with every variable mapped to `None`.
     fn new(metadata: &Self::MetaData) -> Self;
 
+    /// Set the given variable to `Some(val)`.
     fn set(&mut self, var: Self::Var, val: Self::Value);
 }
 
