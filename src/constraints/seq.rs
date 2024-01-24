@@ -15,7 +15,7 @@ pub struct Seq<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'stati
 }
 
 impl Seq<char> {
-    /// Allowed sequences are the lowercase words of the given length from the file at `path`.
+    /// Allowed sequences are the words of the given length from the file at `path`.
     pub fn word_list_file(
         path: impl AsRef<Path>,
         word_len: usize,
@@ -24,7 +24,7 @@ impl Seq<char> {
         let allowed_words = word_list
             .lines()
             .map(|s| s.trim())
-            .filter(|s| &s.to_lowercase() == s)
+            .map(|s| s.to_lowercase())
             .filter(|s| s.chars().count() == word_len)
             .map(|s| s.chars().collect::<Vec<_>>())
             .collect::<Vec<_>>();
