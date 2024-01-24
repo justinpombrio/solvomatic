@@ -1,10 +1,8 @@
-//! FILL
+//! See README.md
 
 // TODO:
 // - [ ] release 'parser-ll1' at least enough that it can be imported!
 // - [x] have letters and digits be disjoint?
-
-#![feature(slice_take)]
 
 use argh::FromArgs;
 use parser_ll1::{CompiledParser, Grammar, GrammarError, Parser};
@@ -144,7 +142,8 @@ impl<'a> Iterator for LayoutParser<'a> {
 
         // If we're at the beginning, consume the initial whitespace
         if self.at_start {
-            let whitespace = self.whitespace.take_first().unwrap();
+            let (whitespace, rest) = self.whitespace.split_first().unwrap();
+            self.whitespace = rest;
             if !self.input.starts_with(whitespace) {
                 let line = self.input.lines().next().unwrap_or("[empty]").to_string();
                 return Some(Err(BadInput::DoesNotMatchLayout(
@@ -157,7 +156,8 @@ impl<'a> Iterator for LayoutParser<'a> {
         }
 
         // Consume word and subsequent whitespace
-        let whitespace = self.whitespace.take_first().unwrap();
+        let (whitespace, rest) = self.whitespace.split_first().unwrap();
+        self.whitespace = rest;
         let word = if whitespace == "" {
             let word = &self.input[0..1];
             self.input = &self.input[1..];
@@ -303,7 +303,7 @@ impl WordListLoader {
         let words = word_list
             .lines()
             .map(|s| s.trim())
-            .filter(|s| &s.to_lowercase() == s) // filter out proper nouns
+            .map(|s| s.to_lowercase())
             .filter(|s| s.chars().count() == word_len)
             .map(|s| s.chars().map(|ch| 96 - (ch as i32)).collect::<Vec<_>>());
 
@@ -498,7 +498,7 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     //   DATA
     //   ...
     let path = g
-        .regex("path", "([/a-zA-Z0-9-]|\\.[a-zA-Z])+")?
+        .regex("path", "([_/a-zA-Z0-9-]|\\.[_a-zA-Z])+")?
         .span(|span| span.substr.to_owned());
     let sum_p = entry_p
         .clone()

@@ -6,7 +6,7 @@ layout
 range a..z
 |  *****
 
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 |  12345
 
 |  54321

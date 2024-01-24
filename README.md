@@ -61,7 +61,7 @@ range a..z
 |   /* * *\
 |  /* * * *\
 
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 |     /.\
 |    /b b\
 |   /c c c\
@@ -138,7 +138,7 @@ with _rules_. In this case, we're just going to write one rule, that things need
 to be words:
 
 ```text
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 ```
 
 The `word` rule takes one argument, which is a path to a list of words. Given a sequence
@@ -150,7 +150,7 @@ the relevant `*`s in order. For example, to say that the 2nd, 3rd, and 4th row m
 words when read from left to right, you would say:
 
 ```text
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 |     /.\
 |    /1 2\
 |   /. . .\
@@ -184,7 +184,7 @@ For our example the default order is correct, so we can capture all the rule seq
 with just three layouts:
 
 ```text
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 |     /.\
 |    /b b\
 |   /c c c\
@@ -228,15 +228,13 @@ the following rules:
 - `rule sum N`: the (positive!) numbers in the sequence sum to `n`.
 - `rule product N`: the (positive!) numbers in the sequence multiply to `n`.
 - `rule permutation SET`: the letters/numbers are a permutation of the given set.
-- `rule subset SET`: the letters/numbers are a subsetof the given set.
+- `rule subset SET`: the letters/numbers are a subset of the given set.
 - `rule superset SET`: the letters/numbers are a superset of the given set.
 - `rule in_order`: the letters/numbers occur in order (each is at least as big
   as the last).
 - `rule in_reverse_order`: the letters/numbers occur in reverse order (each is
   at least as small as the last).
 - `rule word PATH`: the letters form a word from the word list at the given path.
-  Only _lowercase_ words in `PATH` are considered, because capital letters
-  typically represent proper nouns or acronyms.
 
 Some of these rules take a "SET" as an argument. This can simply be some letters/numbers
 separated by spaces (e.g. `a e i o u` for vowels). It can also include ranges using `..`

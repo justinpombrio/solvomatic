@@ -22,7 +22,7 @@ range a e i o u
 
 # Every row and col forms a word.
 
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 | aaaa
 | bbbb
 | cccc

@@ -10,7 +10,7 @@ range a..z
 |   /* * *\
 |  /* * * *\
 
-rule word /usr/share/dict/words
+rule word puzzles/word-list-cel_2-15.txt
 |     /.\
 |    /b b\
 |   /c c c\
