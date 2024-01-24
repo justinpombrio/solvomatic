@@ -23,14 +23,14 @@ Its rules are capable of expressing problems such as:
 - Word Squares
 
 It is much faster than brute force, using the magical powers of distributive lattices,
-though it tends to be slower than hand-rolled solvers (for the moment anyways).
+though it tends to be slower than hand-rolled solvers for the moment.
 
 
 **Table of contents:**
 
 - [Example: Word Pyramid](#example-word-pyramid)
 - [Documentation](#documentation)
-- [Rules](#rules-1)
+- [Supported Rules](#supported-rules)
 - [Usage](#usage)
 - [Solv-o-matic as a Library](#solv-o-matic-as-a-library)
 
@@ -133,8 +133,9 @@ range a..z
 
 ### Rules
 
-Most important are the rules. In this case, we're just going to write one rule,
-that things need to be words:
+After declaring possible values with `range`, we must limit what can go where
+with _rules_. In this case, we're just going to write one rule, that things need
+to be words:
 
 ```text
 rule word /usr/share/dict/words
@@ -166,7 +167,7 @@ rule word /usr/share/dict/words
 |  /1 2 3 4\
 ```
 
-This is getting verbose, though! Fortunately there's a shorthand. We can mark each sequence
+This is getting verbose! Fortunately there's a shorthand. We can mark each sequence
 with a distinct letter like this:
 
 ```text
@@ -179,7 +180,8 @@ with a distinct letter like this:
 Solv-o-matic will turn each letter into a sequence by taking all the places that letter
 appears _in order_ (top to bottom, left to right). You can use this shorthand so long as
 that happens to be the correct order. If it's not, you'll need to write the numbers out.
-For our example it is, so we can capture all the rule sequences with just three layouts:
+For our example the default order is correct, so we can capture all the rule sequences
+with just three layouts:
 
 ```text
 rule word /usr/share/dict/words
@@ -218,7 +220,7 @@ initial
 For more examples, see [puzzles/](puzzles/).
 
 
-## Rules
+## Supported Rules
 
 The most important part of all of this is the rules. Solv-o-matic currently supports
 the following rules:
@@ -228,10 +230,13 @@ the following rules:
 - `rule permutation SET`: the letters/numbers are a permutation of the given set.
 - `rule subset SET`: the letters/numbers are a subsetof the given set.
 - `rule superset SET`: the letters/numbers are a superset of the given set.
-- `rule in_order`: the letters/numbers occur in order (each is bigger than the last).
-- `rule in_reverse_order`: the letters/numbers occur in reverse order (each is smaller
-  than the last).
+- `rule in_order`: the letters/numbers occur in order (each is at least as big
+  as the last).
+- `rule in_reverse_order`: the letters/numbers occur in reverse order (each is
+  at least as small as the last).
 - `rule word PATH`: the letters form a word from the word list at the given path.
+  Only _lowercase_ words in `PATH` are considered, because capital letters
+  typically represent proper nouns or acronyms.
 
 Some of these rules take a "SET" as an argument. This can simply be some letters/numbers
 separated by spaces (e.g. `a e i o u` for vowels). It can also include ranges using `..`
@@ -267,7 +272,7 @@ variables:
 
 Each row in a partition is called a _tuple_ (so the first partition contains three tuples).
 
-Overall, the table above represents _exactly_ the same state of knowledge as a table with
+Overall, the table above represents exactly the same state of knowledge as a table with
 one partition and 12 rows:
 
 ```text
@@ -313,6 +318,8 @@ if cell (1, 2) was given to be 7.
 Tables are modified in only a few ways:
 
 - Tuples (rows in a partition) are deleted when they conflict with a rule.
+  (E.g. in that sudoku table, tuple `7` will quickly be deleted from `(1, 1)`
+  and `(1, 3)`.)
 - If multiple partitions only have one tuple, they're merged into a bigger partition.
 - When there's nothing else to be done, solv-o-matic will try merging two partitions
   together.
@@ -359,8 +366,7 @@ to a smaller one. For the sequence A B E F, this gives:
       | 4 |
 ```
 
-(Notice what happened to the `A C` partition: there were three tuples but now there's
-only two.)
+(Notice the `A C` partition: it used to have three tuples but now it has two.)
 
 In this tiny example, there are only 2 * 4 * 1 = 8 total possibilities represented by
 this table, so we could just compute the sum for every possibility. But in general, a
@@ -391,7 +397,7 @@ every single value with a [min, max] range:
           | [3,3] |
           | [4,4] |
 
-Then compute the min and max possible sum for each tuple by _and_ing them together
+Then compute the min and max possible sum for each tuple by _and_-ing them together
 (in this case there's only one tuple):
 
     A     | B     | EF
@@ -401,7 +407,7 @@ Then compute the min and max possible sum for each tuple by _and_ing them togeth
           | [3,3] |
           | [4,4] |
 
-Then compute the min and max possible sum for each partition, by _or_ing them:
+Then compute the min and max possible sum for each partition, by _or_-ing them:
 
     A     | B     | EF
     ------+-------+------------
@@ -431,7 +437,7 @@ The _sum_ of two multisets _adds_ the number of repetitions together, so
 `{1, 1, 2} + {1, 2, 3} = {1, 1, 1, 2, 2, 3}`. The _union_ of two multisets takes the
 maximum of the repetitions, so `{1, 1, 2} union {1, 2, 3} = {1, 1, 2, 3}`.
 
-The rules for _and_ and _or_ing min/max multiset pairs are:
+The rules for _and_ and _or_-ing min/max multiset pairs are:
 
     [A, B] and [C, D] = [A sum C, B sum D]
 
@@ -504,7 +510,7 @@ A, B, C to be a permutation of the nubmers 1, 3, 4:
 
 However, Maybe is also a correct answer. A rule is allowed to answer Maybe instead of
 Yes or No. It's just less precise, and as a result less efficient. On that note, if you
-can think of a way to check permutation cosntraints that says No here, while remaining
+can think of a way to check permutation constraints that says No here, while remaining
 efficient to compute, let me know! I'll switch to it.
 
 There are other rules, but they're all built on the same premise: answer Yes, No, or
@@ -516,22 +522,22 @@ So far we've walked through how a table is represented and how rules work. To pu
 all together we need a strategy for using these rules to simplify tables until they're
 solved. Here's a sketch of how Solv-o-matic does it:
 
-   to simplify a table:
-       for each partition P in the table:
-           for each tuple T in P:
-               for each rule:
-                   if the rule answers No when P is set to T:
-                       delete T from P
-
-   to solve a table:
-       repeat until the table has only one partition:
-           merge all partitions containing only one tuple
-           options = []
-           for each pair of partitions P, Q:
-               construct the table you'd get by merging P and Q
-               simplify this table (as above)
-               add this table to options
-           set the table equal to the table in options with minimum size
+    to simplify a table:
+        for each partition P in the table:
+            for each tuple T in P:
+                for each rule:
+                    if the rule answers No when P is set to T:
+                        delete T from P
+ 
+    to solve a table:
+        repeat until the table has only one partition:
+            merge all partitions containing only one tuple
+            options = []
+            for each pair of partitions P, Q:
+                construct the table you'd get by merging P and Q
+                simplify this table (as above)
+                add this table to options
+            set the table equal to the table in options with minimum size
 
 A couple definitions used above:
 
