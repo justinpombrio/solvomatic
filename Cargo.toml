@@ -14,4 +14,4 @@ argh = "0.1"
 rayon = "1.8"
 termsize = "0.1"
 # TODO
-parser-ll1 = { path = "../experiments/parser-ll1/" }
+parser-ll1 = { git = "https://github.com/justinpombrio/parser-ll1" }
