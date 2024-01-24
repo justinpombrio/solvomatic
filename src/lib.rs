@@ -9,6 +9,10 @@
 //       | + b +
 //       | b a b
 //       | + b +
+// - [ ] Jake's suggestion: allow forcing distinct words
+//       (Needs a rule that accepts a _set_ of seqs of cells to apply to.
+//        Keep its Constraint interface the same, just have a fancy constructor,
+//        and change parsing in `main.rs` to feed it all patterns.)
 
 //! Some puzzles require a spark of insight, a sudden recognition, or a clever twist of thought.
 //!

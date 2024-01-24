@@ -217,9 +217,23 @@ impl Data {
 
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let entries = self
+            .entries
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>();
+        let max_len = entries.iter().map(|s| s.len()).max().unwrap_or(1);
+
         write!(f, "{}", self.layout.whitespace[0])?;
         for i in 0..self.entries.len() {
-            write!(f, "{}{}", self.entries[i], self.layout.whitespace[i + 1])?;
+            write!(
+                f,
+                "{:>padding$}{}{}",
+                "",
+                &entries[i],
+                self.layout.whitespace[i + 1],
+                padding = max_len - entries[i].len(),
+            )?;
         }
         Ok(())
     }
