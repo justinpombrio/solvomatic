@@ -1,6 +1,5 @@
 # Find the unique order 3 magic hexagon
 # https://en.wikipedia.org/wiki/Magic_hexagon
-# This takes a very long time to run, but it does find the unique solution.
 
 layout
 |   * * *

@@ -1,3 +1,15 @@
+// TODO:
+// - [ ] Better Unsat messages. Right now they often say "one of 0" :-/
+// - [ ] Instead of constraints being made of and/or, give them a reference
+//       to a table projection, to do what they want with.
+// - [ ] Skyscraper constraints
+// - [ ] Make constraints into formulas.
+// - [ ] Parse visual constraints. E.g.:
+//       rule (sum a) = (sum b)
+//       | + b +
+//       | b a b
+//       | + b +
+
 //! Some puzzles require a spark of insight, a sudden recognition, or a clever twist of thought.
 //!
 //! _For all the others, there's solv-o-matic._
@@ -570,12 +582,6 @@
 
 mod state;
 mod table;
-
-// TODO:
-// - more constraints!
-// - testing!
-// - skyscraper constraints
-// - better Unsat messages. Right how they often contain "one of 0" :-/
 
 use constraints::Constraint;
 use std::fmt;
