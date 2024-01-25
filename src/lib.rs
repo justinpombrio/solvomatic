@@ -13,6 +13,10 @@
 //       (Needs a rule that accepts a _set_ of seqs of cells to apply to.
 //        Keep its Constraint interface the same, just have a fancy constructor,
 //        and change parsing in `main.rs` to feed it all patterns.)
+// - [ ] Jake's suggestion: allow checking a set of boards by putting them
+//       in `initial`. Each is solved independently, then each solution or unsat
+//       is listed.
+// - [ ] Improve layout parsing error messages. At least give the line number.
 
 //! Some puzzles require a spark of insight, a sudden recognition, or a clever twist of thought.
 //!

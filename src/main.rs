@@ -170,7 +170,7 @@ impl<'a> Iterator for LayoutParser<'a> {
             let line = self.input.lines().next().unwrap_or("").to_string();
             return Some(Err(BadInput::DoesNotMatchLayout(
                 line,
-                format!("expected '{}'", whitespace),
+                format!("expected {:?}", whitespace),
             )));
         };
 
