@@ -1,6 +1,3 @@
-// TODO
-#![allow(unused)]
-
 use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::State;
 use std::fmt;
@@ -24,8 +21,12 @@ pub struct Table<S: State> {
 #[derive(Debug)]
 pub struct Solution<S: State> {
     /// VarIndex -> Var
+    // TODO
+    #[allow(unused)]
     vars: Vec<S::Var>,
     /// VarIndex -> Value
+    // TODO
+    #[allow(unused)]
     entries: Vec<S::Value>,
 }
 
@@ -56,6 +57,8 @@ impl<S: State> Table<S> {
         self.entries.push(vals);
     }
 
+    // TODO
+    #[allow(unused)]
     fn size(&self) -> usize {
         let mut size = 0;
         for values in &self.entries {
@@ -75,6 +78,8 @@ impl<S: State> Table<S> {
         self.entries[var] = vec![self.entries[var].swap_remove(guess)];
     }
 
+    // TODO
+    #[allow(unused)]
     fn all_guesses(self) -> Vec<Vec<Table<S>>> {
         let mut options: Vec<Vec<Table<S>>> = Vec::new();
         for var_to_guess in 0..self.entries.len() {
@@ -131,6 +136,44 @@ impl<S: State> Table<S> {
         set
     }
 
+    fn eval_constraint_for_all<C: Constraint<S::Value>>(
+        &self,
+        constraint: &C,
+        params: &Vec<S::Var>,
+        param_index: usize,
+    ) -> Vec<YesNoMaybe> {
+        let var = &params[param_index];
+        let var_index = self.vars.iter().position(|v| v == var).unwrap();
+        let values_iter = self.entries[var_index].iter().cloned();
+
+        if params.len() == 1 {
+            assert_eq!(param_index, 0);
+            return values_iter
+                .map(|value| constraint.check(constraint.singleton(param_index, value)))
+                .collect();
+        }
+
+        let mut params_iter = params.iter().enumerate().filter(|(i, _)| *i != param_index);
+        let (first_param_index, first_var) = params_iter.next().unwrap();
+        let mut set =
+            self.eval_constraint_for_param(constraint, first_param_index, first_var.clone(), None);
+        for (param_index, var) in params_iter {
+            set = constraint.and(
+                set,
+                self.eval_constraint_for_param(constraint, param_index, var.clone(), None),
+            );
+        }
+
+        values_iter
+            .map(|value| {
+                constraint
+                    .check(constraint.and(set.clone(), constraint.singleton(param_index, value)))
+            })
+            .collect()
+    }
+
+    // TODO
+    #[allow(unused)]
     fn eval_constraint<C: Constraint<S::Value>>(
         &self,
         constraint: &C,
@@ -201,11 +244,11 @@ impl<S: State> fmt::Display for Table<S> {
  ************************/
 
 struct DynConstraint<S: State> {
+    // TODO
+    #[allow(unused)]
     name: String,
     params: Vec<S::Var>,
-    eval: Box<
-        dyn Fn(&Table<S>, Option<(VarIndex, EntryIndex)>) -> YesNoMaybe + Send + Sync + 'static,
-    >,
+    eval: Box<dyn Fn(&Table<S>, usize) -> Vec<YesNoMaybe> + Send + Sync + 'static>,
 }
 
 impl<S: State> DynConstraint<S> {
@@ -217,11 +260,9 @@ impl<S: State> DynConstraint<S> {
         let params = params.into_iter().collect::<Vec<_>>();
 
         let params_copy = params.clone();
-        let eval = Box::new(
-            move |table: &Table<S>, assume: Option<(VarIndex, EntryIndex)>| {
-                table.eval_constraint(&constraint, &params_copy, assume)
-            },
-        );
+        let eval = Box::new(move |table: &Table<S>, param_index: usize| {
+            table.eval_constraint_for_all(&constraint, &params_copy, param_index)
+        });
         DynConstraint { name, params, eval }
     }
 }
@@ -234,6 +275,8 @@ pub struct GuessingSolver<S: State> {
     tables: Vec<Table<S>>,
     solutions: Vec<Solution<S>>,
     constraints: Vec<DynConstraint<S>>,
+    // TODO
+    #[allow(unused)]
     metadata: S::MetaData,
     config: Config,
 }
@@ -271,13 +314,16 @@ impl<S: State> GuessingSolver<S> {
             .push(DynConstraint::new(params, constraint));
     }
 
+    // TODO
+    #[allow(unused)]
     fn delete_completed_constraints(&mut self) {
         // TODO
     }
 
     fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
-        use YesNoMaybe::{Maybe, No, Yes};
+        use YesNoMaybe::No;
 
+        /*
         let mut relevant_constraints = Vec::new();
         for constraint in &self.constraints {
             match (constraint.eval)(&table, None) {
@@ -287,28 +333,34 @@ impl<S: State> GuessingSolver<S> {
                 No => return None,
             }
         }
+        */
 
         loop {
             let mut to_delete: Vec<(VarIndex, EntryIndex)> = Vec::new();
-            for var in 0..table.vars.len() {
-                if table.entries[var].len() == 1 {
-                    continue;
-                }
-                for entry in 0..table.entries[var].len() {
-                    for constraint in &relevant_constraints {
-                        match (constraint.eval)(&table, Some((var, entry))) {
-                            Yes | Maybe => (),
-                            No => {
-                                to_delete.push((var, entry));
-                                break;
+            // for var in 0..table.vars.len() {
+            //     if table.entries[var].len() == 1 {
+            //         continue;
+            //     }
+            for constraint in &self.constraints {
+                for param_index in 0..constraint.params.len() {
+                    let answers = (constraint.eval)(&table, param_index);
+                    for (entry, answer) in answers.into_iter().enumerate() {
+                        if answer == No {
+                            let var = &constraint.params[param_index];
+                            let var_index = table.vars.iter().position(|v| v == var).unwrap();
+                            let key = (var_index, entry);
+                            if !to_delete.contains(&key) {
+                                to_delete.push(key);
                             }
                         }
                     }
                 }
             }
+            //}
             if to_delete.is_empty() {
                 break;
             }
+            to_delete.sort();
             for (var, entry) in to_delete.iter().rev() {
                 table.entries[*var].remove(*entry);
                 if table.entries[*var].is_empty() {
