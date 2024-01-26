@@ -312,45 +312,440 @@
 // how the code currently works.
 #![allow(clippy::result_unit_err)]
 
-mod guessing_solver;
 mod state;
-mod table;
-
-use constraints::Constraint;
-use std::fmt;
-use std::time::Instant;
 
 pub mod constraints;
+pub use state::{State, StateSet};
 
-pub use guessing_solver::GuessingSolver;
-pub use state::State;
-pub use table::Table;
+use constraints::{Constraint, YesNoMaybe};
+use std::fmt;
+use std::mem;
+use std::time::Instant;
 
-/// Solves puzzles in much the same way that hitting them with a brick doesn't.
-pub struct Solvomatic<S: State> {
-    table: Table<S>,
-    constraints: Vec<DynConstraint<S>>,
-    config: Config,
-    metadata: S::MetaData,
+/************************
+ *     Table            *
+ ************************/
+
+type VarIndex = usize;
+type EntryIndex = usize;
+
+pub struct Table<S: State> {
+    /// VarIndex -> Var
+    vars: Vec<S::Var>,
+    /// VarIndex -> set of Value
+    entries: Vec<Vec<S::Value>>,
 }
 
-/// The problem was over constrained! Contained is a snapshot of the Table just before a constraint
-/// was applied that shrunk that Table's number of possibilities to zero, together with information
-/// about that constraint.
-#[derive(Debug, Clone)]
-pub struct Unsatisfiable<S: State> {
-    pub table: Table<S>,
-    pub header: Vec<S::Var>,
-    pub constraint: String,
-    metadata: S::MetaData,
+// #derive doesn't work here; it inappropriately requires S: Clone
+impl<S: State> Clone for Table<S> {
+    fn clone(&self) -> Self {
+        Table {
+            vars: self.vars.clone(),
+            entries: self.entries.clone(),
+        }
+    }
 }
+
+impl<S: State> Table<S> {
+    fn new() -> Table<S> {
+        Table {
+            vars: Vec::new(),
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn add_column(&mut self, var: S::Var, values: impl IntoIterator<Item = S::Value>) {
+        let vals = values.into_iter().collect::<Vec<_>>();
+        if vals.is_empty() {
+            panic!("Empty range given for variable {:?}", var);
+        }
+        self.vars.push(var.clone());
+        self.entries.push(vals);
+    }
+
+    fn size(&self) -> usize {
+        let mut size = 0;
+        for values in &self.entries {
+            size += values.len();
+        }
+        size
+    }
+
+    fn var_guessing_score(&self, var: VarIndex) -> i32 {
+        match self.entries[var].len() {
+            1 => 0,
+            n => 1000_000 - n as i32,
+        }
+    }
+
+    fn make_guess(&mut self, var: VarIndex, guess: EntryIndex) {
+        self.entries[var] = vec![self.entries[var].swap_remove(guess)];
+    }
+
+    // TODO
+    #[allow(unused)]
+    fn all_guesses(self) -> Vec<Vec<Table<S>>> {
+        let mut options: Vec<Vec<Table<S>>> = Vec::new();
+        for var_to_guess in 0..self.entries.len() {
+            let num_guesses = self.entries[var_to_guess].len();
+            if num_guesses < 2 {
+                continue;
+            }
+            let option = (0..num_guesses)
+                .map(|guess| {
+                    let mut table = self.clone();
+                    table.make_guess(var_to_guess, guess);
+                    table
+                })
+                .collect::<Vec<_>>();
+            options.push(option);
+        }
+        options
+    }
+
+    fn guess(self) -> Vec<Table<S>> {
+        let var_to_guess = (0..self.entries.len())
+            .max_by_key(|i| self.var_guessing_score(*i))
+            .unwrap_or(0);
+        let num_guesses = self.entries[var_to_guess].len();
+        (0..num_guesses)
+            .map(|guess| {
+                let mut table = self.clone();
+                table.make_guess(var_to_guess, guess);
+                table
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn eval_constraint_for_param<C: Constraint<S::Value>>(
+        &self,
+        constraint: &C,
+        param_index: usize,
+        var: S::Var,
+        assume: Option<(VarIndex, EntryIndex)>,
+    ) -> C::Set {
+        let var_index = self.vars.iter().position(|v| *v == var).unwrap();
+        if let Some((assumed_var, assumed_entry)) = assume {
+            if assumed_var == var_index {
+                return constraint
+                    .singleton(param_index, self.entries[var_index][assumed_entry].clone());
+            }
+        }
+
+        let mut values_iter = self.entries[var_index].iter();
+        let mut set = constraint.singleton(param_index, values_iter.next().unwrap().clone());
+        for value in values_iter {
+            set = constraint.or(set, constraint.singleton(param_index, value.clone()));
+        }
+        set
+    }
+
+    fn eval_constraint_for_all<C: Constraint<S::Value>>(
+        &self,
+        constraint: &C,
+        params: &Vec<S::Var>,
+        param_index: usize,
+    ) -> Vec<YesNoMaybe> {
+        let var = &params[param_index];
+        let var_index = self.vars.iter().position(|v| v == var).unwrap();
+        let values_iter = self.entries[var_index].iter().cloned();
+
+        if params.len() == 1 {
+            assert_eq!(param_index, 0);
+            return values_iter
+                .map(|value| constraint.check(constraint.singleton(param_index, value)))
+                .collect();
+        }
+
+        let mut params_iter = params.iter().enumerate().filter(|(i, _)| *i != param_index);
+        let (first_param_index, first_var) = params_iter.next().unwrap();
+        let mut set =
+            self.eval_constraint_for_param(constraint, first_param_index, first_var.clone(), None);
+        for (param_index, var) in params_iter {
+            set = constraint.and(
+                set,
+                self.eval_constraint_for_param(constraint, param_index, var.clone(), None),
+            );
+        }
+
+        values_iter
+            .map(|value| {
+                constraint
+                    .check(constraint.and(set.clone(), constraint.singleton(param_index, value)))
+            })
+            .collect()
+    }
+
+    // TODO
+    #[allow(unused)]
+    fn eval_constraint<C: Constraint<S::Value>>(
+        &self,
+        constraint: &C,
+        params: &Vec<S::Var>,
+        assume: Option<(VarIndex, EntryIndex)>,
+    ) -> YesNoMaybe {
+        if let Some((var, _)) = assume {
+            if !params.contains(&self.vars[var]) {
+                // The relevant var isn't one of our params!
+                return YesNoMaybe::Yes;
+            }
+        }
+        let mut params_iter = params.iter().enumerate();
+        let (first_param_index, first_var) = params_iter.next().unwrap();
+        let mut set = self.eval_constraint_for_param(
+            constraint,
+            first_param_index,
+            first_var.clone(),
+            assume,
+        );
+        for (param_index, var) in params_iter {
+            set = constraint.and(
+                set,
+                self.eval_constraint_for_param(constraint, param_index, var.clone(), assume),
+            );
+        }
+        constraint.check(set)
+    }
+
+    fn is_solved(&self) -> bool {
+        for values in &self.entries {
+            if values.len() > 1 {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn into_state(&self, metadata: &S::MetaData) -> S {
+        let mut solution = S::new(metadata);
+        for (var, values) in self.vars.iter().zip(self.entries.iter()) {
+            if values.len() == 1 {
+                solution.set(var.clone(), values[0].clone());
+            }
+        }
+        solution
+    }
+}
+
+impl<S: State> fmt::Display for Table<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Table:")?;
+        for (i, var) in self.vars.iter().enumerate() {
+            write!(f, "    {:?}:", var)?;
+            for val in &self.entries[i] {
+                write!(f, " {:?}", val)?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+/************************
+ *     DynConstraint    *
+ ************************/
 
 struct DynConstraint<S: State> {
+    // TODO
+    #[allow(unused)]
     name: String,
     params: Vec<S::Var>,
-    apply: Box<dyn Fn(&mut Table<S>) -> Result<bool, ()> + Send + Sync + 'static>,
-    done: bool,
+    eval: Box<dyn Fn(&Table<S>, usize) -> Vec<YesNoMaybe> + Send + Sync + 'static>,
 }
+
+impl<S: State> DynConstraint<S> {
+    fn new<C: Constraint<S::Value>>(
+        params: impl IntoIterator<Item = S::Var>,
+        constraint: C,
+    ) -> DynConstraint<S> {
+        let name = C::NAME.to_owned();
+        let params = params.into_iter().collect::<Vec<_>>();
+
+        let params_copy = params.clone();
+        let eval = Box::new(move |table: &Table<S>, param_index: usize| {
+            table.eval_constraint_for_all(&constraint, &params_copy, param_index)
+        });
+        DynConstraint { name, params, eval }
+    }
+}
+
+/************************
+ *     Solver           *
+ ************************/
+
+pub struct Solvomatic<S: State> {
+    tables: Vec<Table<S>>,
+    solutions: Vec<S>,
+    constraints: Vec<DynConstraint<S>>,
+    metadata: S::MetaData,
+    config: Config,
+}
+
+impl<S: State> Solvomatic<S> {
+    /// Construct an empty solver. Call `var()` and `constraint()` to give it variables and
+    /// constraints, then `solve()` to solve for them.
+    pub fn new(metadata: S::MetaData) -> Solvomatic<S> {
+        Solvomatic {
+            tables: vec![Table::new()],
+            solutions: Vec::new(),
+            constraints: Vec::new(),
+            config: Config::default(),
+            metadata,
+        }
+    }
+
+    pub fn config(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+    /// Add a new variable, with a set of possible values.
+    pub fn var(&mut self, var: S::Var, values: impl IntoIterator<Item = S::Value>) {
+        assert_eq!(self.tables.len(), 1, "Called 'var' after solving started");
+        self.tables[0].add_column(var, values);
+    }
+
+    /// Add the requirement that the variables `params` must obey `constraint`.
+    pub fn constraint<C: Constraint<S::Value>>(
+        &mut self,
+        params: impl IntoIterator<Item = S::Var>,
+        constraint: C,
+    ) {
+        let params = params.into_iter().collect::<Vec<_>>();
+        if self.config.log_constraints {
+            eprintln!("Constraint {} on {:?} = {:?}", C::NAME, params, constraint);
+        }
+
+        self.constraints
+            .push(DynConstraint::new(params, constraint));
+    }
+
+    // TODO
+    #[allow(unused)]
+    fn delete_completed_constraints(&mut self) {
+        // TODO
+    }
+
+    fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
+        use YesNoMaybe::No;
+
+        // TODO: Delete completed constraints, and log them
+        // if self.config.log_completed {
+        //     eprintln!"(completed constraint {} {:?}",
+        //         constraint.name, constraint.params
+        //     )
+        // }
+        /*
+        let mut relevant_constraints = Vec::new();
+        for constraint in &self.constraints {
+            match (constraint.eval)(&table, None) {
+                // Constraint is always satisfied, we can ignore it
+                Yes => (),
+                Maybe => relevant_constraints.push(constraint),
+                No => return None,
+            }
+        }
+        */
+
+        loop {
+            let mut to_delete: Vec<(VarIndex, EntryIndex)> = Vec::new();
+            // for var in 0..table.vars.len() {
+            //     if table.entries[var].len() == 1 {
+            //         continue;
+            //     }
+            for constraint in &self.constraints {
+                for param_index in 0..constraint.params.len() {
+                    let answers = (constraint.eval)(&table, param_index);
+                    for (entry, answer) in answers.into_iter().enumerate() {
+                        if answer == No {
+                            let var = &constraint.params[param_index];
+                            let var_index = table.vars.iter().position(|v| v == var).unwrap();
+                            let key = (var_index, entry);
+                            if !to_delete.contains(&key) {
+                                to_delete.push(key);
+                            }
+                        }
+                    }
+                }
+            }
+            //}
+            if to_delete.is_empty() {
+                break;
+            }
+            to_delete.sort();
+            for (var, entry) in to_delete.iter().rev() {
+                table.entries[*var].remove(*entry);
+                if table.entries[*var].is_empty() {
+                    return None;
+                }
+            }
+        }
+        Some(table)
+    }
+
+    fn size(&self) -> usize {
+        self.tables.iter().map(|table| table.size()).sum()
+    }
+
+    fn possibilities(&self) -> f64 {
+        let mut count = 0.0;
+        for table in &self.tables {
+            let mut product = 1.0;
+            for values in &table.entries {
+                product *= values.len() as f64;
+            }
+            count += product;
+        }
+        count
+    }
+
+    pub fn solve(&mut self) -> StateSet<S> {
+        let start_time = Instant::now();
+
+        while !self.tables.is_empty() {
+            if self.config.log_states {
+                eprintln!(
+                    "{}",
+                    StateSet(
+                        self.tables
+                            .iter()
+                            .map(|table| table.into_state(&self.metadata))
+                            .collect::<Vec<_>>()
+                    )
+                )
+            }
+            if self.config.log_steps {
+                eprintln!(
+                    "Tables = {:3}, size = {:5}, possibilities = {}",
+                    self.tables.len(),
+                    self.size(),
+                    self.possibilities(),
+                );
+            }
+
+            let table = self.tables.pop().unwrap();
+            if let Some(table) = self.simplify_table(table) {
+                if table.is_solved() {
+                    self.solutions.push(table.into_state(&self.metadata));
+                } else {
+                    self.tables.extend(table.guess());
+                }
+            }
+            if self.config.log_elapsed {
+                let elapsed_time = start_time.elapsed().as_millis();
+                eprintln!("  elapsed: {:5?}ms", elapsed_time);
+            }
+        }
+        if self.config.log_steps {
+            eprintln!("Total time: {}ms", start_time.elapsed().as_millis());
+        }
+
+        StateSet(mem::take(&mut self.solutions))
+    }
+}
+
+/************************
+ *     Config           *
+ ************************/
 
 // When running `main`, this is loaded from command line args.
 // See `Config` in `main.rs`.
@@ -367,208 +762,4 @@ pub struct Config {
     pub log_elapsed: bool,
     /// Log intermediate states (these can be very large!)
     pub log_states: bool,
-}
-
-impl<S: State> Solvomatic<S> {
-    /// Construct an empty solver. Call `var()` and `constraint()` to give it variables and
-    /// constraints, then `solve()` to solve for them.
-    pub fn new(metadata: S::MetaData) -> Solvomatic<S> {
-        Solvomatic {
-            table: Table::new(),
-            constraints: Vec::new(),
-            config: Config::default(),
-            metadata,
-        }
-    }
-
-    pub fn config(&mut self) -> &mut Config {
-        &mut self.config
-    }
-
-    /// Add a new variable, with a set of possible values.
-    pub fn var(&mut self, x: S::Var, values: impl IntoIterator<Item = S::Value>) {
-        self.table.add_column(x, values);
-    }
-
-    /// Add the requirement that the variables `params` must obey `constraint`.
-    pub fn constraint<C: Constraint<S::Value>>(
-        &mut self,
-        params: impl IntoIterator<Item = S::Var>,
-        constraint: C,
-    ) {
-        self.mapped_constraint(params, |_, v| v, constraint)
-    }
-
-    /// Add the requirement that the variables `params`, after being `map`ed, must obey
-    /// `constraint`.
-    pub fn mapped_constraint<N, C: Constraint<N>>(
-        &mut self,
-        params: impl IntoIterator<Item = S::Var>,
-        map: impl Fn(usize, S::Value) -> N + Send + Sync + 'static,
-        constraint: C,
-    ) {
-        let name = C::NAME.to_owned();
-        let params = params.into_iter().collect::<Vec<_>>();
-
-        if self.config.log_constraints {
-            eprintln!("Constraint {} on {:?} = {:?}", name, params, constraint);
-        }
-
-        let params_copy = params.clone();
-        let apply = Box::new(move |table: &mut Table<S>| {
-            table.apply_constraint(&params_copy, &map, &constraint)
-        });
-        self.constraints.push(DynConstraint {
-            name,
-            params,
-            apply,
-            done: false,
-        });
-    }
-
-    /// Solves the constraints! Returns `Err(Unsatisfiable)` if it discovers that the constraints
-    /// are not, in fact, possible to satisfy. Otherwise, call `.table()` to see the solution(s).
-    pub fn solve(&mut self) -> Result<(), Unsatisfiable<S>> {
-        let start_time = Instant::now();
-
-        self.table = self.apply_constraints(self.table.clone())?;
-        while self.table.num_partitions() > 1 && self.table.possibilities() > 1.0 {
-            self.step()?;
-        }
-        self.table.merge_constants();
-
-        if self.config.log_steps {
-            eprintln!("Total time: {}ms", start_time.elapsed().as_millis());
-        }
-
-        Ok(())
-    }
-
-    /// Apply one step of solving. It's important to `apply_constraints()` _before_ the first step
-    /// though!
-    fn step(&mut self) -> Result<(), Unsatisfiable<S>> {
-        use rayon::prelude::*;
-
-        let start_time = Instant::now();
-
-        // Mark completed constraints as done
-        self.mark_completed_constraints();
-
-        // Merge all constant partitions together
-        self.table.merge_constants();
-
-        if self.config.log_states {
-            eprintln!("{}", self.table.display(&self.metadata));
-        }
-        if self.config.log_steps {
-            eprintln!(
-                "\nNumber of partitions = {:2}, table size = {:4}, possibilities = {}",
-                self.table.num_partitions(),
-                self.table.size(),
-                self.table.possibilities(),
-            );
-        }
-
-        // Consider merging all combinations of two Sections of the table
-        if self.table.num_partitions() > 1 {
-            let mut options = Vec::new();
-            for i in 0..self.table.num_partitions() - 1 {
-                for j in i + 1..self.table.num_partitions() {
-                    options.push((i, j));
-                }
-            }
-            let result = options
-                .par_iter()
-                .map(&|(i, j): &(usize, usize)| {
-                    let mut new_table = self.table.clone();
-                    new_table.merge(*i, *j);
-                    self.apply_constraints(new_table)
-                })
-                .reduce_with(|a, b| match (a, b) {
-                    (Err(err), _) | (_, Err(err)) => Err(err),
-                    (Ok(table_a), Ok(table_b)) => {
-                        if table_a.cost() <= table_b.cost() {
-                            Ok(table_a)
-                        } else {
-                            Ok(table_b)
-                        }
-                    }
-                });
-
-            self.table = result.unwrap()?;
-        }
-
-        // Log how long it took
-        if self.config.log_elapsed {
-            let elapsed_time = start_time.elapsed().as_millis();
-            eprintln!("  elapsed: {:5?}ms", elapsed_time);
-        }
-
-        Ok(())
-    }
-
-    /// Repeatedly apply all constraints until that stops having any effect.
-    fn apply_constraints(&self, mut table: Table<S>) -> Result<Table<S>, Unsatisfiable<S>> {
-        let mut last_size = table.size() + 1;
-        while table.size() < last_size {
-            last_size = table.size();
-            for constraint in &self.constraints {
-                if constraint.done {
-                    continue;
-                }
-                match (constraint.apply)(&mut table) {
-                    Ok(_) => (),
-                    Err(()) => {
-                        return Err(Unsatisfiable {
-                            table,
-                            constraint: constraint.name.clone(),
-                            header: constraint.params.clone(),
-                            metadata: self.metadata.clone(),
-                        })
-                    }
-                }
-            }
-        }
-        Ok(table)
-    }
-
-    /// Mark constraints that will _always_ hold as done.
-    fn mark_completed_constraints(&mut self) {
-        for constraint in &mut self.constraints {
-            if constraint.done {
-                continue;
-            }
-            if (constraint.apply)(&mut self.table.clone()) == Ok(true) {
-                if self.config.log_completed {
-                    println!(
-                        "  completed constraint {} {:?}",
-                        constraint.name, constraint.params
-                    );
-                }
-                constraint.done = true;
-            }
-        }
-    }
-
-    /// The current table of possibilities.
-    pub fn table(&self) -> &Table<S> {
-        &self.table
-    }
-
-    pub fn display_table(&self) -> impl fmt::Display + '_ {
-        self.table.display(&self.metadata)
-    }
-}
-
-impl<S: State> fmt::Display for Unsatisfiable<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "UNSATISFIABLE!")?;
-        writeln!(f, "{}", self.table.display(&self.metadata))?;
-        write!(f, "Constraint {} on [", self.constraint)?;
-        for variable in &self.header {
-            write!(f, "{:?} ", variable)?;
-        }
-        writeln!(f, "]")?;
-        write!(f, "is unsatisfiable")
-    }
 }
