@@ -6,7 +6,7 @@
 
 use argh::FromArgs;
 use parser_ll1::{CompiledParser, Grammar, GrammarError, Parser};
-use solvomatic::{Solvomatic, State};
+use solvomatic::{GuessingSolver, State};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -326,14 +326,14 @@ impl WordListLoader {
 }
 
 impl PuzzleDefinition {
-    fn make_solver(self, config: Config) -> Result<Solvomatic<Data>, BadInput> {
+    fn make_solver(self, config: Config) -> Result<GuessingSolver<Data>, BadInput> {
         use solvomatic::constraints::{Permutation, Pred, Prod, Subset, Sum, Superset};
 
         let mut word_list_loader = WordListLoader::new();
 
         let original_layout = Layout::new(&self.layout);
         let layout = Arc::new(original_layout.clone());
-        let mut solver = Solvomatic::new(layout.clone());
+        let mut solver = GuessingSolver::new(layout.clone());
 
         if !config.quiet {
             solver.config().log_steps = true;
@@ -638,6 +638,6 @@ fn main() {
         .make_solver(config)
         .unwrap_or_else(|err| panic!("{}", err));
 
-    solver.solve().unwrap_or_else(|err| panic!("{}", err));
-    println!("{}", solver.display_table());
+    let solutions = solver.solve();
+    println!("{:#?}", solutions);
 }

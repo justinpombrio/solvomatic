@@ -312,6 +312,7 @@
 // how the code currently works.
 #![allow(clippy::result_unit_err)]
 
+mod guessing_solver;
 mod state;
 mod table;
 
@@ -321,6 +322,7 @@ use std::time::Instant;
 
 pub mod constraints;
 
+pub use guessing_solver::GuessingSolver;
 pub use state::State;
 pub use table::Table;
 
