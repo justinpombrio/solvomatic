@@ -41,6 +41,11 @@ use std::fmt;
 ///     1 2 4 7 8 9
 ///     2 1 4 7 8 9
 /// ```
+
+/************************
+ *     Data Structs     *
+ ************************/
+
 #[derive(Debug)]
 pub struct Table<S: State> {
     partitions: Vec<Partition<S>>,
@@ -53,9 +58,21 @@ struct Partition<S: State> {
     tuples: Vec<Vec<S::Value>>,
 }
 
+/************************
+ *     Tables           *
+ ************************/
+
 impl<S: State> Default for Table<S> {
     fn default() -> Table<S> {
         Table::new()
+    }
+}
+
+impl<S: State> Clone for Table<S> {
+    fn clone(&self) -> Table<S> {
+        Table {
+            partitions: self.partitions.clone(),
+        }
     }
 }
 
@@ -257,6 +274,10 @@ impl<S: State> Table<S> {
     }
 }
 
+/************************
+ *     Partitions       *
+ ************************/
+
 impl<S: State> Partition<S> {
     /// Construct a `Partition` using only the columns present in `params`. Return `None` if there
     /// would be zero columns.
@@ -339,6 +360,10 @@ fn project_header<S: State>(
     }
 }
 
+/************************
+ *     Helpers          *
+ ************************/
+
 fn map_vec<A, B>(vec: impl IntoIterator<Item = A>, f: impl Fn(A) -> B) -> Vec<B> {
     vec.into_iter().map(f).collect::<Vec<_>>()
 }
@@ -352,13 +377,9 @@ impl<S: State> Clone for Partition<S> {
     }
 }
 
-impl<S: State> Clone for Table<S> {
-    fn clone(&self) -> Table<S> {
-        Table {
-            partitions: self.partitions.clone(),
-        }
-    }
-}
+/************************
+ *     Display          *
+ ************************/
 
 impl<S: State> Table<S> {
     pub fn display<'a>(&'a self, metadata: &'a S::MetaData) -> impl fmt::Display + 'a {
