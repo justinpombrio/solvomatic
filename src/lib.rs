@@ -265,16 +265,35 @@
 //! #     }
 //! # }
 //! # impl fmt::Display for Sudoku {
-//! #     fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-//! #         unimplemented!()
+//! #     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//! #         writeln!(f, "+---+---+---+")?;
+//! #         for (i, row) in self.0.iter().enumerate() {
+//! #             write!(f, "|")?;
+//! #             for (j, cell) in row.iter().enumerate() {
+//! #                 if let Some(n) = cell {
+//! #                     write!(f, "{:1}", n)?;
+//! #                 } else {
+//! #                     write!(f, "_")?;
+//! #                 }
+//! #                 if j % 3 == 2 {
+//! #                     write!(f, "|")?;
+//! #                 }
+//! #             }
+//! #             writeln!(f)?;
+//! #             if i % 3 == 2 {
+//! #                 writeln!(f, "+---+---+---+")?;
+//! #             }
+//! #         }
+//! #         Ok(())
 //! #     }
 //! # }
 //! # let mut solver = Solvomatic::<Sudoku>::new(());
-//! match solver.solve() {
-//!     Ok(()) => (),
-//!     Err(err) => panic!("{}", err),
+//! let solutions = solver.solve();
+//! if solutions.0.is_empty() {
+//!     println!("No solutions");
+//! } else {
+//!     println!("{}", solutions);
 //! }
-//! println!("{}", solver.display_table());
 //! ```
 //!
 //! And it spits out the possible solutions:
