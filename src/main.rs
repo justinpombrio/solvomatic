@@ -1,9 +1,5 @@
 //! See README.md
 
-// TODO:
-// - [ ] release 'parser-ll1' at least enough that it can be imported!
-// - [x] have letters and digits be disjoint?
-
 use argh::FromArgs;
 use parser_ll1::{CompiledParser, Grammar, GrammarError, Parser};
 use solvomatic::{GuessingSolver, State};
@@ -639,5 +635,7 @@ fn main() {
         .unwrap_or_else(|err| panic!("{}", err));
 
     let solutions = solver.solve();
-    println!("{} solutions", solutions.len());
+    let count = solutions.0.len();
+    println!("Solutions:\n{}", solutions);
+    println!("{} solutions", count);
 }

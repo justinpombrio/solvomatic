@@ -1,5 +1,5 @@
 use crate::constraints::{Constraint, YesNoMaybe};
-use crate::state::State;
+use crate::state::{State, StateSet};
 use std::fmt;
 use std::mem;
 use std::time::Instant;
@@ -16,18 +16,6 @@ pub struct Table<S: State> {
     vars: Vec<S::Var>,
     /// VarIndex -> set of Value
     entries: Vec<Vec<S::Value>>,
-}
-
-#[derive(Debug)]
-pub struct Solution<S: State> {
-    /// VarIndex -> Var
-    // TODO
-    #[allow(unused)]
-    vars: Vec<S::Var>,
-    /// VarIndex -> Value
-    // TODO
-    #[allow(unused)]
-    entries: Vec<S::Value>,
 }
 
 // #derive doesn't work here; it inappropriately requires S: Clone
@@ -213,15 +201,13 @@ impl<S: State> Table<S> {
     }
 
     // requires self.is_solved()!
-    fn into_solution(self) -> Solution<S> {
-        Solution {
-            vars: self.vars,
-            entries: self
-                .entries
-                .into_iter()
-                .map(|mut vals| vals.swap_remove(0))
-                .collect(),
+    fn into_solution(self, metadata: &S::MetaData) -> S {
+        let mut solution = S::new(metadata);
+        for (var, mut values) in self.vars.into_iter().zip(self.entries.into_iter()) {
+            let value = values.swap_remove(0);
+            solution.set(var, value);
         }
+        solution
     }
 }
 
@@ -273,10 +259,8 @@ impl<S: State> DynConstraint<S> {
 
 pub struct GuessingSolver<S: State> {
     tables: Vec<Table<S>>,
-    solutions: Vec<Solution<S>>,
+    solutions: Vec<S>,
     constraints: Vec<DynConstraint<S>>,
-    // TODO
-    #[allow(unused)]
     metadata: S::MetaData,
     config: Config,
 }
@@ -383,7 +367,7 @@ impl<S: State> GuessingSolver<S> {
         count
     }
 
-    pub fn solve(&mut self) -> Vec<Solution<S>> {
+    pub fn solve(&mut self) -> StateSet<S> {
         let start_time = Instant::now();
 
         while let Some(table) = self.tables.pop() {
@@ -395,7 +379,7 @@ impl<S: State> GuessingSolver<S> {
             //println!("{}", table);
             if let Some(table) = self.simplify_table(table) {
                 if table.is_solved() {
-                    self.solutions.push(table.into_solution());
+                    self.solutions.push(table.into_solution(&self.metadata));
                 } else {
                     self.tables.extend(table.guess());
                 }
@@ -403,7 +387,7 @@ impl<S: State> GuessingSolver<S> {
         }
         eprintln!("Total time: {}ms", start_time.elapsed().as_millis());
 
-        mem::take(&mut self.solutions)
+        StateSet(mem::take(&mut self.solutions))
     }
 }
 
