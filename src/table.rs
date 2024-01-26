@@ -41,6 +41,11 @@ use std::fmt;
 ///     1 2 4 7 8 9
 ///     2 1 4 7 8 9
 /// ```
+
+/************************
+ *     Data Structures  *
+ ************************/
+
 #[derive(Debug)]
 pub struct Table<S: State> {
     partitions: Vec<Partition<S>>,
@@ -52,6 +57,10 @@ struct Partition<S: State> {
     header: Vec<S::Var>,
     tuples: Vec<Vec<S::Value>>,
 }
+
+/************************
+ *     Tables           *
+ ************************/
 
 impl<S: State> Default for Table<S> {
     fn default() -> Table<S> {
@@ -257,6 +266,74 @@ impl<S: State> Table<S> {
     }
 }
 
+impl<S: State> Clone for Table<S> {
+    fn clone(&self) -> Table<S> {
+        Table {
+            partitions: self.partitions.clone(),
+        }
+    }
+}
+
+/************************
+ *     Projection       *
+ ************************/
+
+pub struct ProjectedTable<'a, S: State> {
+    params: &'a [S::Var],
+    table: &'a Table<S>,
+}
+
+pub struct ProjectedPartition<'a, S: State> {
+    params: &'a [S::Var],
+    partition: &'a Partition<S>,
+}
+
+pub struct ProjectedTuple<'a, S: State> {
+    params: &'a [S::Var],
+    header: &'a [S::Var],
+    tuple: &'a [S::Value],
+}
+
+impl<'a, S: State> ProjectedTable<'a, S> {
+    pub fn partitions(&self) -> impl Iterator<Item = ProjectedPartition<S>> {
+        self.table
+            .partitions
+            .iter()
+            .filter(|partition| partition.header.iter().any(|var| self.params.contains(var)))
+            .map(|partition| ProjectedPartition {
+                params: self.params,
+                partition,
+            })
+    }
+}
+
+impl<'a, S: State> ProjectedPartition<'a, S> {
+    pub fn tuples(&self) -> impl Iterator<Item = ProjectedTuple<S>> {
+        self.partition.tuples.iter().map(|tuple| ProjectedTuple {
+            params: self.params,
+            header: &self.partition.header,
+            tuple,
+        })
+    }
+}
+
+impl<'a, S: State> ProjectedTuple<'a, S> {
+    pub fn values(&self) -> impl Iterator<Item = (usize, S::Value)> + 'a {
+        // TODO: Eliminate this position() by storing each Header instead as a
+        // VarIndex -> (ParititonIndex, PartitionHeaderIndex) on the Table?
+        self.params.iter().enumerate().filter_map(|(i, var)| {
+            self.header
+                .iter()
+                .position(|v| v == var)
+                .map(|j| (i, self.tuple[j].clone()))
+        })
+    }
+}
+
+/************************
+ *     Partitions       *
+ ************************/
+
 impl<S: State> Partition<S> {
     /// Construct a `Partition` using only the columns present in `params`. Return `None` if there
     /// would be zero columns.
@@ -339,10 +416,6 @@ fn project_header<S: State>(
     }
 }
 
-fn map_vec<A, B>(vec: impl IntoIterator<Item = A>, f: impl Fn(A) -> B) -> Vec<B> {
-    vec.into_iter().map(f).collect::<Vec<_>>()
-}
-
 impl<S: State> Clone for Partition<S> {
     fn clone(&self) -> Partition<S> {
         Partition {
@@ -352,13 +425,17 @@ impl<S: State> Clone for Partition<S> {
     }
 }
 
-impl<S: State> Clone for Table<S> {
-    fn clone(&self) -> Table<S> {
-        Table {
-            partitions: self.partitions.clone(),
-        }
-    }
+/************************
+ *     Helpers          *
+ ************************/
+
+fn map_vec<A, B>(vec: impl IntoIterator<Item = A>, f: impl Fn(A) -> B) -> Vec<B> {
+    vec.into_iter().map(f).collect::<Vec<_>>()
 }
+
+/************************
+ *     Display          *
+ ************************/
 
 impl<S: State> Table<S> {
     pub fn display<'a>(&'a self, metadata: &'a S::MetaData) -> impl fmt::Display + 'a {
