@@ -401,27 +401,6 @@ impl<S: State> Table<S> {
         self.entries[var] = vec![self.entries[var].swap_remove(guess)];
     }
 
-    // TODO
-    #[allow(unused)]
-    fn all_guesses(self) -> Vec<Vec<Table<S>>> {
-        let mut options: Vec<Vec<Table<S>>> = Vec::new();
-        for var_to_guess in 0..self.entries.len() {
-            let num_guesses = self.entries[var_to_guess].len();
-            if num_guesses < 2 {
-                continue;
-            }
-            let option = (0..num_guesses)
-                .map(|guess| {
-                    let mut table = self.clone();
-                    table.make_guess(var_to_guess, guess);
-                    table
-                })
-                .collect::<Vec<_>>();
-            options.push(option);
-        }
-        options
-    }
-
     fn guess(self) -> Vec<Table<S>> {
         let var_to_guess = (0..self.entries.len())
             .max_by_key(|i| self.var_guessing_score(*i))
@@ -636,12 +615,6 @@ impl<S: State> Solvomatic<S> {
 
         self.constraints
             .push(DynConstraint::new(params, constraint));
-    }
-
-    // TODO
-    #[allow(unused)]
-    fn delete_completed_constraints(&mut self) {
-        // TODO
     }
 
     fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
