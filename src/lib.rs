@@ -19,12 +19,12 @@
 // - [ ] Improve layout parsing error messages. At least give the line number.
 
 // NOTE Solving times on my Yoga laptop for future comparison:
-// WordSquare    -  4s
-// MagicHexagon  - 14s
-// JigsawSudoku2 -  1s
-// JigsawSudoku9 -  7s
-// Palindrome    -  2s
-// MagicSquare   - 400ms
+// WordSquare    -  4s   ->   2s
+// MagicHexagon  - 14s   ->  37s
+// JigsawSudoku2 -  1s   -> 300ms
+// JigsawSudoku9 -  7s   ->   2s
+// Palindrome    -  2s   ->   8s
+// MagicSquare   - 400ms ->   1s
 
 //! Some puzzles require a spark of insight, a sudden recognition, or a clever twist of thought.
 //!

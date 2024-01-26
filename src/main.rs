@@ -639,5 +639,5 @@ fn main() {
         .unwrap_or_else(|err| panic!("{}", err));
 
     let solutions = solver.solve();
-    println!("{:#?}", solutions);
+    println!("{} solutions", solutions.len());
 }

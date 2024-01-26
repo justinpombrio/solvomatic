@@ -5,6 +5,7 @@ use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::State;
 use std::fmt;
 use std::mem;
+use std::time::Instant;
 
 /************************
  *     Table            *
@@ -55,6 +56,14 @@ impl<S: State> Table<S> {
         self.entries.push(vals);
     }
 
+    fn size(&self) -> usize {
+        let mut size = 0;
+        for values in &self.entries {
+            size += values.len();
+        }
+        size
+    }
+
     fn var_guessing_score(&self, var: VarIndex) -> i32 {
         match self.entries[var].len() {
             1 => 0,
@@ -64,6 +73,25 @@ impl<S: State> Table<S> {
 
     fn make_guess(&mut self, var: VarIndex, guess: EntryIndex) {
         self.entries[var] = vec![self.entries[var].swap_remove(guess)];
+    }
+
+    fn all_guesses(self) -> Vec<Vec<Table<S>>> {
+        let mut options: Vec<Vec<Table<S>>> = Vec::new();
+        for var_to_guess in 0..self.entries.len() {
+            let num_guesses = self.entries[var_to_guess].len();
+            if num_guesses < 2 {
+                continue;
+            }
+            let option = (0..num_guesses)
+                .map(|guess| {
+                    let mut table = self.clone();
+                    table.make_guess(var_to_guess, guess);
+                    table
+                })
+                .collect::<Vec<_>>();
+            options.push(option);
+        }
+        options
     }
 
     fn guess(self) -> Vec<Table<S>> {
@@ -109,6 +137,12 @@ impl<S: State> Table<S> {
         params: &Vec<S::Var>,
         assume: Option<(VarIndex, EntryIndex)>,
     ) -> YesNoMaybe {
+        if let Some((var, _)) = assume {
+            if !params.contains(&self.vars[var]) {
+                // The relevant var isn't one of our params!
+                return YesNoMaybe::Yes;
+            }
+        }
         let mut params_iter = params.iter().enumerate();
         let (first_param_index, first_var) = params_iter.next().unwrap();
         let mut set = self.eval_constraint_for_param(
@@ -241,16 +275,28 @@ impl<S: State> GuessingSolver<S> {
         // TODO
     }
 
-    // returns true if the table "simplified" away to nothing
-    fn simplify_table(&mut self, table_index: usize) -> bool {
+    fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
         use YesNoMaybe::{Maybe, No, Yes};
+
+        let mut relevant_constraints = Vec::new();
+        for constraint in &self.constraints {
+            match (constraint.eval)(&table, None) {
+                // Constraint is always satisfied, we can ignore it
+                Yes => (),
+                Maybe => relevant_constraints.push(constraint),
+                No => return None,
+            }
+        }
 
         loop {
             let mut to_delete: Vec<(VarIndex, EntryIndex)> = Vec::new();
-            for var in 0..self.tables[table_index].vars.len() {
-                for entry in 0..self.tables[table_index].entries[var].len() {
-                    for constraint in &self.constraints {
-                        match (constraint.eval)(&self.tables[table_index], Some((var, entry))) {
+            for var in 0..table.vars.len() {
+                if table.entries[var].len() == 1 {
+                    continue;
+                }
+                for entry in 0..table.entries[var].len() {
+                    for constraint in &relevant_constraints {
+                        match (constraint.eval)(&table, Some((var, entry))) {
                             Yes | Maybe => (),
                             No => {
                                 to_delete.push((var, entry));
@@ -264,13 +310,13 @@ impl<S: State> GuessingSolver<S> {
                 break;
             }
             for (var, entry) in to_delete.iter().rev() {
-                self.tables[table_index].entries[*var].remove(*entry);
-                if self.tables[table_index].entries[*var].is_empty() {
-                    return true;
+                table.entries[*var].remove(*entry);
+                if table.entries[*var].is_empty() {
+                    return None;
                 }
             }
         }
-        false
+        Some(table)
     }
 
     fn possibilities(&self) -> f64 {
@@ -285,34 +331,26 @@ impl<S: State> GuessingSolver<S> {
         count
     }
 
-    fn simplify(&mut self) {
-        println!(
-            "Simplify. Num tables: {}, num possibilities: {}",
-            self.tables.len(),
-            self.possibilities()
-        );
-        //for table in &self.tables {
-        //    println!("{}", table);
-        //}
-
-        for i in (0..self.tables.len()).rev() {
-            if self.simplify_table(i) {
-                self.tables.remove(i); // unsat
-            }
-        }
-        for i in (0..self.tables.len()).rev() {
-            if self.tables[i].is_solved() {
-                self.solutions.push(self.tables.remove(i).into_solution());
-            }
-        }
-    }
-
     pub fn solve(&mut self) -> Vec<Solution<S>> {
-        self.simplify();
+        let start_time = Instant::now();
+
         while let Some(table) = self.tables.pop() {
-            self.tables.extend(table.guess());
-            self.simplify();
+            println!(
+                "Step. Num tables: {}, num possibilities: {}",
+                self.tables.len() + 1,
+                self.possibilities()
+            );
+            //println!("{}", table);
+            if let Some(table) = self.simplify_table(table) {
+                if table.is_solved() {
+                    self.solutions.push(table.into_solution());
+                } else {
+                    self.tables.extend(table.guess());
+                }
+            }
         }
+        eprintln!("Total time: {}ms", start_time.elapsed().as_millis());
+
         mem::take(&mut self.solutions)
     }
 }
