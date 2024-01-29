@@ -1,4 +1,3 @@
-use crate::constraints::{Constraint, YesNoMaybe};
 use crate::state::State;
 use std::fmt;
 
@@ -28,6 +27,10 @@ impl<S: State> Table<S> {
             vars: Vec::new(),
             entries: Vec::new(),
         }
+    }
+
+    pub fn var_index(&self, var: &S::Var) -> VarIndex {
+        self.vars.iter().position(|v| v == var).unwrap()
     }
 
     pub fn add_column(&mut self, var: S::Var, values: impl IntoIterator<Item = S::Value>) {
@@ -78,96 +81,6 @@ impl<S: State> Table<S> {
                 table
             })
             .collect::<Vec<_>>()
-    }
-
-    fn eval_constraint_for_param<C: Constraint<S::Value>>(
-        &self,
-        constraint: &C,
-        param_index: usize,
-        var: S::Var,
-        assume: Option<(VarIndex, EntryIndex)>,
-    ) -> C::Set {
-        let var_index = self.vars.iter().position(|v| *v == var).unwrap();
-        if let Some((assumed_var, assumed_entry)) = assume {
-            if assumed_var == var_index {
-                return constraint
-                    .singleton(param_index, self.entries[var_index][assumed_entry].clone());
-            }
-        }
-
-        let mut values_iter = self.entries[var_index].iter();
-        let mut set = constraint.singleton(param_index, values_iter.next().unwrap().clone());
-        for value in values_iter {
-            set = constraint.or(set, constraint.singleton(param_index, value.clone()));
-        }
-        set
-    }
-
-    pub fn eval_constraint_for_all<C: Constraint<S::Value>>(
-        &self,
-        constraint: &C,
-        params: &Vec<S::Var>,
-        param_index: usize,
-    ) -> Vec<YesNoMaybe> {
-        let var = &params[param_index];
-        let var_index = self.vars.iter().position(|v| v == var).unwrap();
-        let values_iter = self.entries[var_index].iter().cloned();
-
-        if params.len() == 1 {
-            assert_eq!(param_index, 0);
-            return values_iter
-                .map(|value| constraint.check(constraint.singleton(param_index, value)))
-                .collect();
-        }
-
-        let mut params_iter = params.iter().enumerate().filter(|(i, _)| *i != param_index);
-        let (first_param_index, first_var) = params_iter.next().unwrap();
-        let mut set =
-            self.eval_constraint_for_param(constraint, first_param_index, first_var.clone(), None);
-        for (param_index, var) in params_iter {
-            set = constraint.and(
-                set,
-                self.eval_constraint_for_param(constraint, param_index, var.clone(), None),
-            );
-        }
-
-        values_iter
-            .map(|value| {
-                constraint
-                    .check(constraint.and(set.clone(), constraint.singleton(param_index, value)))
-            })
-            .collect()
-    }
-
-    // TODO
-    #[allow(unused)]
-    fn eval_constraint<C: Constraint<S::Value>>(
-        &self,
-        constraint: &C,
-        params: &Vec<S::Var>,
-        assume: Option<(VarIndex, EntryIndex)>,
-    ) -> YesNoMaybe {
-        if let Some((var, _)) = assume {
-            if !params.contains(&self.vars[var]) {
-                // The relevant var isn't one of our params!
-                return YesNoMaybe::Yes;
-            }
-        }
-        let mut params_iter = params.iter().enumerate();
-        let (first_param_index, first_var) = params_iter.next().unwrap();
-        let mut set = self.eval_constraint_for_param(
-            constraint,
-            first_param_index,
-            first_var.clone(),
-            assume,
-        );
-        for (param_index, var) in params_iter {
-            set = constraint.and(
-                set,
-                self.eval_constraint_for_param(constraint, param_index, var.clone(), assume),
-            );
-        }
-        constraint.check(set)
     }
 
     pub fn is_solved(&self) -> bool {

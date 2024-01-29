@@ -331,44 +331,16 @@
 // how the code currently works.
 #![allow(clippy::result_unit_err)]
 
+mod rules;
 mod state;
 mod table;
 
-pub mod constraints;
 pub use state::{State, StateSet};
 
-use constraints::{Constraint, YesNoMaybe};
+use rules::{Rule, YesNoMaybe};
 use std::mem;
 use std::time::Instant;
 use table::{EntryIndex, Table, VarIndex};
-
-/************************
- *     DynConstraint    *
- ************************/
-
-struct DynConstraint<S: State> {
-    // TODO
-    #[allow(unused)]
-    name: String,
-    params: Vec<S::Var>,
-    eval: Box<dyn Fn(&Table<S>, usize) -> Vec<YesNoMaybe> + Send + Sync + 'static>,
-}
-
-impl<S: State> DynConstraint<S> {
-    fn new<C: Constraint<S::Value>>(
-        params: impl IntoIterator<Item = S::Var>,
-        constraint: C,
-    ) -> DynConstraint<S> {
-        let name = C::NAME.to_owned();
-        let params = params.into_iter().collect::<Vec<_>>();
-
-        let params_copy = params.clone();
-        let eval = Box::new(move |table: &Table<S>, param_index: usize| {
-            table.eval_constraint_for_all(&constraint, &params_copy, param_index)
-        });
-        DynConstraint { name, params, eval }
-    }
-}
 
 /************************
  *     Solver           *
@@ -377,7 +349,7 @@ impl<S: State> DynConstraint<S> {
 pub struct Solvomatic<S: State> {
     tables: Vec<Table<S>>,
     solutions: Vec<S>,
-    constraints: Vec<DynConstraint<S>>,
+    rules: Vec<Box<dyn Rule<S>>>,
     metadata: S::MetaData,
     config: Config,
 }
@@ -389,7 +361,7 @@ impl<S: State> Solvomatic<S> {
         Solvomatic {
             tables: vec![Table::new()],
             solutions: Vec::new(),
-            constraints: Vec::new(),
+            rules: Vec::new(),
             config: Config::default(),
             metadata,
         }
@@ -405,19 +377,12 @@ impl<S: State> Solvomatic<S> {
         self.tables[0].add_column(var, values);
     }
 
-    /// Add the requirement that the variables `params` must obey `constraint`.
-    pub fn constraint<C: Constraint<S::Value>>(
-        &mut self,
-        params: impl IntoIterator<Item = S::Var>,
-        constraint: C,
-    ) {
-        let params = params.into_iter().collect::<Vec<_>>();
-        if self.config.log_constraints {
-            eprintln!("Constraint {} on {:?} = {:?}", C::NAME, params, constraint);
+    /// Add the requirement that the rule holds over its parameters.
+    pub fn rule(&mut self, rule: impl Rule<S>) {
+        if self.config.log_rules {
+            eprintln!("Rule {} on {:?} = {:?}", rule.name(), rule.vars(), rule);
         }
-
-        self.constraints
-            .push(DynConstraint::new(params, constraint));
+        self.rules.push(Box::new(rule));
     }
 
     fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
@@ -441,18 +406,15 @@ impl<S: State> Solvomatic<S> {
         }
         */
 
+        // TODO: Cache rule names & vars
         loop {
             let mut to_delete: Vec<(VarIndex, EntryIndex)> = Vec::new();
-            // for var in 0..table.vars.len() {
-            //     if table.entries[var].len() == 1 {
-            //         continue;
-            //     }
-            for constraint in &self.constraints {
-                for param_index in 0..constraint.params.len() {
-                    let answers = (constraint.eval)(&table, param_index);
+            for rule in &self.rules {
+                for param_index in 0..rule.vars().len() {
+                    let answers = rule.parallel_check(&table, param_index);
                     for (entry, answer) in answers.into_iter().enumerate() {
                         if answer == No {
-                            let var = &constraint.params[param_index];
+                            let var = &rule.vars()[param_index];
                             let var_index = table.vars.iter().position(|v| v == var).unwrap();
                             let key = (var_index, entry);
                             if !to_delete.contains(&key) {
@@ -462,7 +424,6 @@ impl<S: State> Solvomatic<S> {
                     }
                 }
             }
-            //}
             if to_delete.is_empty() {
                 break;
             }
@@ -544,8 +505,8 @@ impl<S: State> Solvomatic<S> {
 pub struct Config {
     /// Log after each step that's taken
     pub log_steps: bool,
-    /// Log the list of contraints before solving
-    pub log_constraints: bool,
+    /// Log the list of rules before solving
+    pub log_rules: bool,
     /// Log when a constraint is completed
     pub log_completed: bool,
     /// Log how long each step took
