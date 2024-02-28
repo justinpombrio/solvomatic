@@ -1,6 +1,15 @@
 use crate::state::State;
 use crate::table::Table;
 use std::fmt::Debug;
+use std::from::From;
+
+mod bag;
+mod prod;
+mod sum;
+
+pub use bag::{Bag, Value, Var};
+pub use prod::Prod;
+pub use sum::Sum;
 
 // TODO: Docs
 
@@ -17,80 +26,20 @@ impl YesNoMaybe {
 
         match (self, other) {
             (Yes, Yes) => Yes,
-            (Maybe, Maybe) | (Yes, Maybe) | (Maybe, Yes) => Maybe,
             (No, _) | (_, No) => No,
+            (Maybe, _) | (_, Maybe) => Maybe,
         }
     }
 }
 
-pub type Value = i32;
-pub type Var = usize;
-
-#[derive(Debug, Clone)]
-pub enum Bag {
-    /// A superset of `min` but a subset of `max`. Both are sorted and can have repetition.
-    Multiset { min: Vec<Value>, max: Vec<Value> },
-    /// Exactly one value between `min` and `max`, inclusive.
-    Range { min: Value, max: Value },
-    /// Exactly one of the given set. Values are sorted and disjoint.
-    Set(Vec<Value>),
-    /// Exactly the given value.
-    Single(Value),
-    /// Unsatisfiable!
-    Empty,
-}
-
-impl Bag {
-    fn as_range(&self) -> Option<(Value, Value)> {
-        match self {
-            Bag::Empty => None,
-            Bag::Single(value) => Some((*value, *value)),
-            Bag::Set(values) => Some((values[0], values[values.len() - 1])),
-            Bag::Range { min, max } => Some((*min, *max)),
-            Bag::Multiset { max, .. } => Some((max[0], max[max.len() - 1])),
+impl From<bool> for YesNoMaybe {
+    fn from(b: bool) -> YesNoMaybe {
+        if b {
+            Yes
+        } else {
+            No
         }
     }
-
-    fn yes_no(&self) -> Option<YesNoMaybe> {
-        use YesNoMaybe::{Maybe, No, Yes};
-
-        // TODO: Is this exactly right? Should some of these be disallowed?
-        match self {
-            Bag::Empty => None,
-            Bag::Single(0) => Some(No),
-            Bag::Single(1) => Some(Yes),
-            Bag::Single(_) => None,
-            Bag::Set(vals) => match vals.as_slice() {
-                &[0] => Some(No),
-                &[1] => Some(Yes),
-                &[0, 1] => Some(Maybe),
-                _ => None,
-            },
-            Bag::Range { min, max } => match (min, max) {
-                (0, 0) => Some(No),
-                (1, 1) => Some(Yes),
-                (0, 1) => Some(Maybe),
-                (_, _) => None,
-            },
-            Bag::Multiset { min, max } => match (min.as_slice(), max.as_slice()) {
-                (&[0], &[0]) => Some(No),
-                (&[1], &[1]) => Some(Yes),
-                (&[], &[0, 1]) => Some(Maybe),
-                (_, _) => None,
-            },
-        }
-    }
-}
-
-pub trait Rule<S: State>: Debug + Send + Sync + 'static {
-    /// A name for this rule, for debugging purposes.
-    fn name(&self) -> String;
-
-    fn vars(&self) -> &[S::Var];
-
-    fn check(&self, table: &Table<S>) -> YesNoMaybe;
-
-    fn parallel_check(&self, table: &Table<S>, parallel_var: Var) -> Vec<YesNoMaybe>;
 }
 
 pub trait BagFn: Debug + Send + Sync + 'static {
@@ -125,7 +74,7 @@ pub trait BagFn: Debug + Send + Sync + 'static {
 }
 
 #[derive(Debug)]
-enum Formula {
+pub enum Formula {
     Var([Var; 1]),
     BagFn {
         vars: Vec<Var>,
@@ -135,7 +84,14 @@ enum Formula {
 }
 
 impl Formula {
-    fn vars(&self) -> &[Var] {
+    pub fn name(&self) -> String {
+        match self {
+            Formula::Var([var]) => format!("${}", var),
+            Formula::BagFn { bag_fn, .. } => format!("{}", bag_fn.name()),
+        }
+    }
+
+    pub fn vars(&self) -> &[Var] {
         match self {
             Formula::Var(var_slice) => var_slice,
             Formula::BagFn { vars, .. } => vars,
@@ -159,6 +115,29 @@ impl Formula {
         }
     }
 
+    pub fn check<S>(&self, table: &Table<S>) -> YesNoMaybe
+    where
+        S: State<Value = Value, Var = Var>,
+    {
+        self.eval(table)
+            .yes_no()
+            .unwrap_or_else(|| panic!("Rule {} did not produce a boolean result", self.name()))
+    }
+
+    pub fn parallel_check<S>(&self, table: &Table<S>, parallel_var: Var) -> Vec<YesNoMaybe>
+    where
+        S: State<Value = Value, Var = Var>,
+    {
+        self.parallel_eval(table, parallel_var)
+            .into_iter()
+            .map(|bag| {
+                bag.yes_no().unwrap_or_else(|| {
+                    panic!("Rule {} did not produce a boolean result", self.name())
+                })
+            })
+            .collect::<Vec<_>>()
+    }
+
     fn parallel_eval<S>(&self, table: &Table<S>, parallel_var: Var) -> Vec<Bag>
     where
         S: State<Value = Value, Var = Var>,
@@ -180,7 +159,6 @@ impl Formula {
                 let mut parallel_options = Vec::new();
                 for (i, formula) in formulae.iter().enumerate() {
                     if formula.vars().contains(&parallel_var) {
-                        args.push(Bag::Empty); // never seen
                         parallel_options = formula.parallel_eval(table, parallel_var);
                         parallel_index = i;
                     } else {
@@ -190,44 +168,5 @@ impl Formula {
                 bag_fn.parallel_apply(args, parallel_index, parallel_options)
             }
         }
-    }
-}
-
-impl<S> Rule<S> for Formula
-where
-    S: State<Value = Value, Var = Var>,
-{
-    fn name(&self) -> String {
-        match self {
-            Formula::Var([var]) => format!("${}", var),
-            Formula::BagFn { bag_fn, .. } => format!("{}", bag_fn.name()),
-        }
-    }
-
-    fn vars(&self) -> &[Var] {
-        Formula::vars(self)
-    }
-
-    fn check(&self, table: &Table<S>) -> YesNoMaybe {
-        self.eval(table).yes_no().unwrap_or_else(|| {
-            panic!(
-                "Rule {} did not produce a boolean result",
-                Rule::<S>::name(self)
-            )
-        })
-    }
-
-    fn parallel_check(&self, table: &Table<S>, parallel_var: S::Var) -> Vec<YesNoMaybe> {
-        self.parallel_eval(table, parallel_var)
-            .into_iter()
-            .map(|bag| {
-                bag.yes_no().unwrap_or_else(|| {
-                    panic!(
-                        "Rule {} did not produce a boolean result",
-                        Rule::<S>::name(self)
-                    )
-                })
-            })
-            .collect::<Vec<_>>()
     }
 }

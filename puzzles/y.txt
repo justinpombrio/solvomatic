@@ -1,0 +1,8 @@
+layout
+| * * *
+
+range 1..6
+| * * *
+
+rule sum 6
+| * * *

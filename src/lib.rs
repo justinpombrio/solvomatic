@@ -335,9 +335,10 @@ mod rules;
 mod state;
 mod table;
 
+pub use rules::{Prod, Sum};
 pub use state::{State, StateSet};
 
-use rules::{Rule, YesNoMaybe};
+use rules::{Formula, YesNoMaybe};
 use std::mem;
 use std::time::Instant;
 use table::{EntryIndex, Table, VarIndex};
@@ -349,7 +350,7 @@ use table::{EntryIndex, Table, VarIndex};
 pub struct Solvomatic<S: State> {
     tables: Vec<Table<S>>,
     solutions: Vec<S>,
-    rules: Vec<Box<dyn Rule<S>>>,
+    rules: Vec<Formula>,
     metadata: S::MetaData,
     config: Config,
 }
@@ -378,14 +379,18 @@ impl<S: State> Solvomatic<S> {
     }
 
     /// Add the requirement that the rule holds over its parameters.
-    pub fn rule(&mut self, rule: impl Rule<S>) {
+    pub fn rule(&mut self, rule: Formula) {
         if self.config.log_rules {
             eprintln!("Rule {} on {:?} = {:?}", rule.name(), rule.vars(), rule);
         }
-        self.rules.push(Box::new(rule));
+        self.rules.push(rule)
     }
 
-    fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>> {
+    fn simplify_table(&self, mut table: Table<S>) -> Option<Table<S>>
+    where
+        // TODO: hard code
+        S: State<Value = rules::Value, Var = rules::Var>,
+    {
         use YesNoMaybe::No;
 
         // TODO: Delete completed constraints, and log them
@@ -449,7 +454,11 @@ impl<S: State> Solvomatic<S> {
             .product()
     }
 
-    pub fn solve(&mut self) -> StateSet<S> {
+    pub fn solve(&mut self) -> StateSet<S>
+    where
+        // TODO: hard code
+        S: State<Value = rules::Value, Var = rules::Var>,
+    {
         let start_time = Instant::now();
 
         while !self.tables.is_empty() {

@@ -333,7 +333,7 @@ impl PuzzleDefinition {
 
         if !config.quiet {
             solver.config().log_steps = true;
-            solver.config().log_constraints = config.log_constraints;
+            solver.config().log_rules = config.log_rules;
             solver.config().log_completed = config.log_completed;
             solver.config().log_elapsed = config.log_elapsed;
             solver.config().log_states = config.log_states;
@@ -604,9 +604,9 @@ struct Config {
     #[argh(switch, short = 'q', long = "quiet")]
     quiet: bool,
 
-    /// log the list of contraints before solving
-    #[argh(switch, long = "log-constraints")]
-    log_constraints: bool,
+    /// log the list of rules before solving
+    #[argh(switch, long = "log-rules")]
+    log_rules: bool,
 
     /// log when a constraint is completed
     #[argh(switch, long = "log-complete")]

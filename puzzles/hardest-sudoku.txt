@@ -1,8 +1,5 @@
 # World's hardest sudoku.
 # https://abcnews.go.com/blogs/headlines/2012/06/can-you-solve-the-hardest-ever-sudoku
-#
-# Solv-o-matic dies on this from running out of memory. Truly a malevolent sudoku.
-# The online solver I tried solved it instantly, though. I need better Permutation constraints.
 
 layout
 

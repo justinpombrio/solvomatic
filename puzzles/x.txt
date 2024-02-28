@@ -1,0 +1,39 @@
+layout
+| ******
+| ******
+| ******
+| ******
+| ******
+| ******
+
+range 1..6
+| ******
+| ******
+| ******
+| ******
+| ******
+| ******
+
+rule permutation 1..6
+| aaaaaa
+| bbbbbb
+| cccccc
+| dddddd
+| eeeeee
+| ffffff
+
+| abcdef
+| abcdef
+| abcdef
+| abcdef
+| abcdef
+| abcdef
+
+initial
+| 123465
+| .6..5.
+| 654..3
+| .1562.
+| 236541
+| 54...6
+
