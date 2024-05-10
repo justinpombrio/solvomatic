@@ -1,33 +1,22 @@
 use super::YesNoMaybe;
 
-// permutation, subset, superset
-// sum, prod
-// seq
-
 pub type Value = i32;
 pub type Var = usize;
 
 #[derive(Debug, Clone)]
 pub enum Bag {
     /// A superset of `min` but a subset of `max`. Both are sorted and can have repetition.
-    /// If `min` is `[1]` and `max` is `[1, 1, 2]`: `{[1], [1, 1], [1, 2], [1, 1, 2]}`
     Multiset { min: Vec<Value>, max: Vec<Value> },
     /// Exactly one value between `min` and `max`, inclusive.
-    /// `{[min], ..., [max]}`
     Range { min: Value, max: Value },
     /// Exactly one of the given set. Values are sorted and disjoint.
-    /// `{[v1], ..., [vn]}`
     Set(Vec<Value>),
     /// Exactly the given value.
-    /// `{[Value]}`
     Single(Value),
 }
 
-// Bad! Don't use! Loses info. (a sub b, b sub a) returns YesNoMaybes, not bools.
-// Use (a sub b, b sub a) instead; 9 possibilities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BagRel {
-    // (a sub b, b sub a):
+    // (a sub b, b sub a)
     // (true, false)
     Subset,
     // (true, true)
@@ -49,38 +38,59 @@ impl Bag {
     }
 
     pub fn yes_no(&self) -> Option<YesNoMaybe> {
-        use BagRel::{Incomparable, Same, Subset, Superset};
         use YesNoMaybe::{Maybe, No, Yes};
+        use BagOrd::{Less, Equal, Greater, Incomparable};
 
         if self.is_subset(&Bag::Set(vec![0, 1])) != Yes {
             None
-        } else if self.equals(&Bag::Single(0)) == Yes {
+        } else if self.is_subset(&Bag::Single(0)) == Yes {
             Some(No)
-        } else if self.equals(&Bag::Single(1)) == Yes {
+        } else if self.is_subset(&Bag::Single(1)) == Yes {
             Some(Yes)
         } else {
             Some(Maybe)
         }
+
+        /*
+        // TODO: Is this exactly right? Should some of these be disallowed?
+        match self {
+            Bag::Single(0) => Some(No),
+            Bag::Single(1) => Some(Yes),
+            Bag::Single(_) => None,
+            Bag::Set(vals) => match vals.as_slice() {
+                &[0] => Some(No),
+                &[1] => Some(Yes),
+                &[0, 1] => Some(Maybe),
+                _ => None,
+            },
+            Bag::Range { min, max } => match (min, max) {
+                (0, 0) => Some(No),
+                (1, 1) => Some(Yes),
+                (0, 1) => Some(Maybe),
+                (_, _) => None,
+            },
+            Bag::Multiset { min, max } => match (min.as_slice(), max.as_slice()) {
+                (&[0], &[0]) => Some(No),
+                (&[1], &[1]) => Some(Yes),
+                (&[], &[0, 1]) => Some(Maybe),
+                (_, _) => None,
+            },
+        }
+        */
     }
 
-    fn equals(&self, other: &Bag) -> YesNoMaybe {
-        self.is_subset(other).and(other.is_subset(self));
-    }
-
-    /*
-    fn compare(&self, other: &Bag) -> BagRel {
+    fn compare(&self, other: &Bag) -> BagOrd {
         use Bag::{Multiset, Range, Set, Single};
-        use BagRel::{Incomparable, Same, Subset, Supserset};
+        use BagRel::{Subset, Supserset, Same, Incomparable};
 
         match (self, other) {
-            (Single(v1), Single(v2)) => {
+            (Single(v1), Single(v2)) =>
                 if v1 == v2 {
                     Same
                 } else {
                     Incomparable
-                }
-            }
-            (Single(val), Set(vals)) => {
+                },
+            (Single(val), Set(vals)) =>
                 if vals == &[val] {
                     Same
                 } else if vals.contains(val) {
@@ -88,8 +98,7 @@ impl Bag {
                 } else {
                     Incomparable
                 }
-            }
-            (Set(vals), Single(val)) => {
+            (Set(vals), Single(val)) =>
                 if vals == &[val] {
                     Same
                 } else if vals.contains(val) {
@@ -97,98 +106,49 @@ impl Bag {
                 } else {
                     Incomparable
                 }
-            }
-            (Set(vals1), Set(vals2)) => match (is_subset(vals1, vals2), is_subset(vals2, vals1)) {
-                (true, true) => Same,
-                (true, false) => Subset,
-                (false, true) => Superset,
-                (false, false) => Incomparable,
-            },
+            (Set(vals1), Set(vals2)) =>
+                match (is_subset(vals1, vals2), is_subset(vals2, vals1)) {
+
+                }
+                if is_subset(vals1, vals2)
         }
     }
-    */
 
-    // Given set of multisets A and set of multisets B, for how many a in A, b in B
-    // is it true that a is a sub-multiset of b?
-    // All  -> Yes
-    // Some -> Maybe
-    // None -> No
-    // both All and None (b.c. empty set) -> undefined
     pub fn is_subset(&self, other: &Bag) -> YesNoMaybe {
         use Bag::{Multiset, Range, Set, Single};
         use YesNoMaybe::{Maybe, No, Yes};
 
         match (self, other) {
-            (Single(v1), Single(v2)) => YesNoMaybe::from(*v1 == *v2),
-            (Single(val), Set(vals)) | (Set(vals), Single(val)) => {
-                if vals == &[*val] {
-                    Yes
-                } else if vals.contains(val) {
-                    Maybe
-                } else {
-                    No
-                }
-            }
-            (Set(vals1), Set(vals2)) => {
-                if vals1.len() == 1 && vals2.len() == 1 && vals1[0] == vals2[0] {
-                    Yes
-                } else if overlaps(vals1, vals2) {
-                    Maybe
-                } else {
-                    No
-                }
-            }
-            (Single(val), Range { min, max }) | (Range { min, max }, Single(val)) => {
-                if *min == *val && *max == *val {
-                    Yes
-                } else if *min <= *val && *val <= *max {
-                    Maybe
-                } else {
-                    No
-                }
-            }
-            (Set(vals), Range { min, max }) | (Range { min, max }, Set(vals)) => {
-                if *min == *max && vals == &[*min] {
-                    Yes
-                } else if vals.iter().any(|v| *min <= *v && *v <= *max) {
-                    Maybe
-                } else {
-                    No
-                }
-            }
-            (
-                Range {
-                    min: min_1,
-                    max: max_1,
-                },
-                Range {
-                    min: min_2,
-                    max: max_2,
-                },
-            ) => {
-                if min_1 == max_1 && min_2 == max_2 && min_1 == min_2 {
-                    Yes
-                } else if max_1 < min_2 || max_2 < min_1 {
-                    No
-                } else {
-                    Maybe
-                }
-            }
-            (Set(val), Multiset { min, max }) => {
-                if min.contains(*val) {
-                    Yes
-                } else if max.contains(*val) {
-                    Maybe
-                } else {
-                    No
-                }
-            }
-            (Multiset { min, max }, Set(val)) => {
-                if max.is_empty() || max == &[*val] {
-                    Yes
-                }
-            }
+            // single, single
+            (Single(v1), Single(v2)) if v1 == v2 => Yes,
+            (Single(_), Single(_)) => No,
+            // single, set
+            (Single(val), Set(vals)) if vals == &[*val] => Yes,
+            (Single(val), Set(vals)) if vals.contains(val) => Maybe,
+            (Single(_), Set(_)) => No,
+            // set, single
+            (Set(vals), Single(_)) if vals.is_empty() => panic!("unsat in is_subset"),
+            (Set(vals), Single(val)) if vals == &[*val] => Yes,
+            (Set(_), Single(_)) => No,
+            // set, set
+            (Set(vals1), Set(vals2)) if is_subset(vals1, vals2) => Yes,
+            (Set(vals1), Set(vals2)) if is_subset(vals2, vals1) => No,
+            (Set(_), Set(_)) => Maybe,
+            // single, range
+            (Single(val), Range { min, max }) if min == val && max == val => Yes,
+            (Single(val), Range { min, max }) if min <= val && val <= max => Maybe,
+            (Single(_), Range { .. }) => No,
         }
+        /*
+        /// A superset of `min` but a subset of `max`. Both are sorted and can have repetition.
+        Multiset { min: Vec<Value>, max: Vec<Value> },
+        /// Exactly one value between `min` and `max`, inclusive.
+        Range { min: Value, max: Value },
+        /// Exactly one of the given set. Values are sorted and disjoint.
+        Set(Vec<Value>),
+        /// Exactly the given value.
+        Single(Value),
+        */
     }
 
     /*
@@ -237,12 +197,6 @@ impl Bag {
     /// Exactly one of the given set. Values are sorted and disjoint.
     Set(Vec<Value>),
     */
-}
-
-/// Check if `set_1` and `set_2` have any elements in common. Both are represented as a sorted
-/// list.
-fn overlaps(set_1: &[Value], set_2: &[Value]) -> bool {
-    unimplemented!()
 }
 
 /// Check if the "small" set is a subset of the "large" set. Both are represented as a sorted list.
