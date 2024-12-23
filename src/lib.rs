@@ -482,10 +482,7 @@ impl<S: State> Solvomatic<S> {
     }
 
     fn possibilities(&self) -> f64 {
-        self.tables
-            .iter()
-            .map(|table| table.possibilities())
-            .product()
+        self.tables.iter().map(|table| table.possibilities()).sum()
     }
 
     pub fn solve(&mut self) -> StateSet<S> {
