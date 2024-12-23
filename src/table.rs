@@ -58,7 +58,7 @@ impl<S: State> Table<S> {
     fn var_guessing_score(&self, var: VarIndex) -> i32 {
         match self.entries[var].len() {
             1 => 0,
-            n => 1000_000 - n as i32,
+            n => 1_000_000 - n as i32,
         }
     }
 
@@ -106,7 +106,7 @@ impl<S: State> Table<S> {
     pub fn eval_constraint_for_all<C: Constraint<S::Value>>(
         &self,
         constraint: &C,
-        params: &Vec<S::Var>,
+        params: &[S::Var],
         param_index: usize,
     ) -> Vec<YesNoMaybe> {
         let var = &params[param_index];
@@ -144,7 +144,7 @@ impl<S: State> Table<S> {
     fn eval_constraint<C: Constraint<S::Value>>(
         &self,
         constraint: &C,
-        params: &Vec<S::Var>,
+        params: &[S::Var],
         assume: Option<(VarIndex, EntryIndex)>,
     ) -> YesNoMaybe {
         if let Some((var, _)) = assume {
@@ -179,7 +179,7 @@ impl<S: State> Table<S> {
         true
     }
 
-    pub fn into_state(&self, metadata: &S::MetaData) -> S {
+    pub fn to_state(&self, metadata: &S::MetaData) -> S {
         let mut solution = S::new(metadata);
         for (var, values) in self.vars.iter().zip(self.entries.iter()) {
             if values.len() == 1 {

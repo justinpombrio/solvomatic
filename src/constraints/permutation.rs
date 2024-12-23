@@ -216,9 +216,9 @@ impl<T: Debug + Hash + Eq + Ord + Clone + Sized + Send + Sync + 'static> BagRang
     fn is_subset(&self, other: &Bag<T>) -> YesNoMaybe {
         use YesNoMaybe::{Maybe, No, Yes};
 
-        if self.max.is_subset(&other) {
+        if self.max.is_subset(other) {
             Yes
-        } else if self.min.is_subset(&other) {
+        } else if self.min.is_subset(other) {
             Maybe
         } else {
             No

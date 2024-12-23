@@ -131,7 +131,7 @@ fn main() {
     callback_by_row_col(&regions_string, |ch, row, col| {
         regions
             .entry(ch)
-            .or_insert_with(|| Vec::new())
+            .or_insert_with(Vec::new)
             .push((row + 1, col + 1));
     });
     for (_, region) in regions.into_iter() {

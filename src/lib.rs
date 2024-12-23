@@ -495,7 +495,7 @@ impl<S: State> Solvomatic<S> {
                     StateSet(
                         self.tables
                             .iter()
-                            .map(|table| table.into_state(&self.metadata))
+                            .map(|table| table.to_state(&self.metadata))
                             .collect::<Vec<_>>()
                     )
                 )
@@ -512,7 +512,7 @@ impl<S: State> Solvomatic<S> {
             let table = self.tables.pop().unwrap();
             if let Some(table) = self.simplify_table(table) {
                 if table.is_solved() {
-                    self.solutions.push(table.into_state(&self.metadata));
+                    self.solutions.push(table.to_state(&self.metadata));
                 } else {
                     self.tables.extend(table.guess());
                 }

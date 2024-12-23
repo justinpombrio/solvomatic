@@ -30,10 +30,10 @@ fn read_letter(word: &str) -> Option<i32> {
     }
 
     let byte = word.chars().next().unwrap() as i32;
-    if byte >= 65 && byte <= 90 {
+    if (65..=90).contains(&byte) {
         // upper case letter -> negative one-based number index
         Some(64 - byte)
-    } else if byte >= 97 && byte <= 122 {
+    } else if (97..=122).contains(&byte) {
         // lower case letter -> negative one-based number index
         Some(96 - byte)
     } else {
@@ -120,7 +120,7 @@ struct LayoutParser<'a> {
     input: &'a str,
 }
 
-impl<'a> Iterator for LayoutParser<'a> {
+impl Iterator for LayoutParser<'_> {
     type Item = Result<Entry, BadInput>;
 
     fn next(&mut self) -> Option<Result<Entry, BadInput>> {
@@ -154,7 +154,7 @@ impl<'a> Iterator for LayoutParser<'a> {
         // Consume word and subsequent whitespace
         let (whitespace, rest) = self.whitespace.split_first().unwrap();
         self.whitespace = rest;
-        let word = if whitespace == "" {
+        let word = if whitespace.is_empty() {
             let word = &self.input[0..1];
             self.input = &self.input[1..];
             word
@@ -221,12 +221,12 @@ impl fmt::Display for Data {
         let max_len = entries.iter().map(|s| s.len()).max().unwrap_or(1);
 
         write!(f, "{}", self.layout.whitespace[0])?;
-        for i in 0..self.entries.len() {
+        for (i, entry) in self.entries.iter().enumerate() {
             write!(
                 f,
                 "{:>padding$}{}{}",
                 "",
-                &entries[i],
+                entry,
                 self.layout.whitespace[i + 1],
                 padding = max_len - entries[i].len(),
             )?;
@@ -366,7 +366,7 @@ impl PuzzleDefinition {
                         };
                         key_to_var_list
                             .entry(key)
-                            .or_insert_with(|| Vec::new())
+                            .or_insert_with(Vec::new)
                             .push((i, entry))
                     }
                 }
@@ -513,11 +513,11 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     let sum_p = entry_p
         .clone()
         .preceded(g.string("sum")?)
-        .map(|entry| PuzzleRule::Sum(entry));
+        .map(PuzzleRule::Sum);
     let prod_p = entry_p
         .clone()
         .preceded(g.string("prod")?)
-        .map(|entry| PuzzleRule::Prod(entry));
+        .map(PuzzleRule::Prod);
     let permutation_p = tuple(
         "permutation rule",
         (g.string("permutation")?, entry_set_p.clone()),
