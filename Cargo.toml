@@ -1,6 +1,6 @@
 [package]
 name = "solvomatic"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -12,5 +12,5 @@ opt-level = 3
 bitvec = "1.*"
 argh = "0.1"
 rayon = "1.8"
-termsize = "0.1"
+termsize = "0.1.9"
 parser-ll1 = { git = "https://github.com/justinpombrio/parser-ll1" }
