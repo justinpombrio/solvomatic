@@ -1,5 +1,7 @@
 //! From the MIT Mystery Hunt, 2023
 
+// TODO: Make this functional again
+
 use solvomatic::constraints::Pred;
 use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
@@ -78,13 +80,19 @@ fn main() {
         // - `fruits` are the parameters
         // - `counts[i]*n` multiplies the value of each fruit by how many times it appears in the quation
         // - `constraint` checks that the sum is prime
+        // TODO: Support this
+        #[allow(unused)]
         let constraint = Pred::with_len(fruits.len(), |array| is_prime(array.iter().sum()));
-        solver.mapped_constraint(fruits, move |i, n| counts[i] * n, constraint)
+        // solver.mapped_constraint(fruits, move |i, n| counts[i] * n, constraint)
     }
 
     // So many PLUs for apples, let's just try them all
     solver.var("apple".to_owned(), 4000..5000);
 
-    solver.solve().unwrap();
-    println!("{}", solver.display_table());
+    let solutions = solver.solve();
+    if solutions.0.is_empty() {
+        println!("No solutions");
+    } else {
+        println!("{}", solutions);
+    }
 }

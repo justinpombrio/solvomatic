@@ -58,6 +58,10 @@ fn main() {
     solver.constraint([1, 4], Pred::new(|[a, b]| *a == *b));
     solver.constraint([2, 3], Pred::new(|[a, b]| *a == *b));
 
-    solver.solve().unwrap();
-    println!("{}", solver.display_table());
+    let solutions = solver.solve();
+    if solutions.0.is_empty() {
+        println!("No solutions");
+    } else {
+        println!("{}", solutions);
+    }
 }

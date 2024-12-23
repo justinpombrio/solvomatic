@@ -95,6 +95,10 @@ fn main() {
     // cell.
     solver.constraint([(0, 3), (3, 0)], Pred::new(|[x, y]| x < y));
 
-    solver.solve().unwrap();
-    println!("{}", solver.display_table());
+    let solutions = solver.solve();
+    if solutions.0.is_empty() {
+        println!("No solutions");
+    } else {
+        println!("{}", solutions);
+    }
 }

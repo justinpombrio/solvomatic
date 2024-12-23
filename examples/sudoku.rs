@@ -115,6 +115,10 @@ fn main() {
         solver.constraint([(*i, *j)], Pred::new(|[x]| *x == *n));
     }
 
-    solver.solve().unwrap();
-    println!("{}", solver.display_table());
+    let solutions = solver.solve();
+    if solutions.0.is_empty() {
+        println!("No solutions");
+    } else {
+        println!("{}", solutions);
+    }
 }

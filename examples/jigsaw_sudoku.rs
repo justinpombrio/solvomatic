@@ -138,12 +138,10 @@ fn main() {
         solver.constraint(region, SubsetAndSuperset::new(1..=9, (1..=9).chain(1..=9)));
     }
 
-    match solver.solve() {
-        Ok(()) => (),
-        Err(err) => {
-            println!("{}", err);
-            panic!("unsat");
-        }
+    let solutions = solver.solve();
+    if solutions.0.is_empty() {
+        println!("No solutions");
+    } else {
+        println!("{}", solutions);
     }
-    println!("{}", solver.display_table());
 }
