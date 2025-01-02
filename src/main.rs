@@ -84,20 +84,8 @@ struct Layout {
 
 impl Layout {
     fn new(input: &str) -> Layout {
-        let mut whitespace = Vec::new();
-
-        let mut remaining_input = input;
-        loop {
-            match remaining_input.find("*") {
-                None => {
-                    whitespace.push(remaining_input.to_owned());
-                    return Layout { whitespace };
-                }
-                Some(offset) => {
-                    whitespace.push(remaining_input[..offset].to_owned());
-                    remaining_input = &remaining_input[offset + 1..];
-                }
-            }
+        Layout {
+            whitespace: input.split("*").map(|s| s.to_owned()).collect::<Vec<_>>(),
         }
     }
 
