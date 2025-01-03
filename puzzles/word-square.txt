@@ -23,15 +23,13 @@ range a e i o u
 # Every row and col forms a word.
 
 rule word puzzles/word-list-cel_2-15.txt
-| aaaa
-| bbbb
-| cccc
-| dddd
 
-| abcd
-| abcd
-| abcd
-| abcd
+| ****
+
+|*
+|*
+|*
+|*
 
 # Without loss of generality, reflect the word square so that
 # the upper-right cell is less than the lower-left cell.

@@ -6,6 +6,7 @@ use solvomatic::{Solvomatic, State};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
+use std::iter::Peekable;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -24,38 +25,46 @@ const STAR: i32 = -27; // entry representing '*'
 #[derive(Debug, Clone, Copy)]
 struct Entry(Option<i32>);
 
-fn read_letter(word: &str) -> Option<i32> {
-    if word.len() != 1 {
-        return None;
-    }
-
-    let byte = word.chars().next().unwrap() as i32;
-    if (65..=90).contains(&byte) {
+fn read_letter(letter: char) -> Option<i32> {
+    if letter.is_ascii_uppercase() {
         // upper case letter -> negative one-based number index
-        Some(64 - byte)
-    } else if (97..=122).contains(&byte) {
+        Some('A' as i32 - letter as i32 - 1)
+    } else if letter.is_ascii_lowercase() {
         // lower case letter -> negative one-based number index
-        Some(96 - byte)
+        Some('a' as i32 - letter as i32 - 1)
     } else {
         None
     }
 }
 
-impl FromStr for Entry {
-    type Err = BadInput;
-
-    fn from_str(word: &str) -> Result<Entry, BadInput> {
-        if word == "." {
-            Ok(Entry(None))
-        } else if word == "*" {
+impl Entry {
+    fn parse(input: &mut Peekable<impl Iterator<Item = char>>) -> Option<Entry> {
+        let ch = match input.next() {
+            Some(ch) => ch,
+            None => return None,
+        };
+        if ch == '.' {
+            Some(Entry(None))
+        } else if ch == '*' {
             // '*' shouldn't occur in actual input, only templates
-            Ok(Entry(Some(STAR)))
-        } else if let Some(n) = read_letter(word) {
-            Ok(Entry(Some(n)))
-        } else if let Ok(n) = u32::from_str(word) {
-            Ok(Entry(Some(n as i32)))
+            Some(Entry(Some(STAR)))
+        } else if ch.is_ascii_alphabetic() {
+            let entry = read_letter(ch)?;
+            Some(Entry(Some(entry)))
+        } else if let Some(digit) = ch.to_digit(10) {
+            let mut n = digit as i32;
+            while let Some(ch) = input.peek() {
+                if let Some(digit) = ch.to_digit(10) {
+                    n *= 10;
+                    n += digit as i32;
+                    input.next();
+                } else {
+                    break;
+                }
+            }
+            Some(Entry(Some(n)))
         } else {
-            Err(BadInput::BadEntry(word.to_owned()))
+            None
         }
     }
 }
@@ -77,90 +86,138 @@ impl fmt::Display for Entry {
 /// A layout saying how to read and write one `Data` state.
 #[derive(Debug, Clone, Default)]
 struct Layout {
-    /// Whitespace that occurs around and between the entries. Has length one
-    /// more than the number of entries.
-    whitespace: Vec<String>,
+    layout: String,
+    num_entries: usize,
 }
 
 impl Layout {
     fn new(input: &str) -> Layout {
         Layout {
-            whitespace: input.split("*").map(|s| s.to_owned()).collect::<Vec<_>>(),
+            layout: input.to_owned(),
+            num_entries: input.chars().filter(|ch| *ch == '*').count(),
         }
     }
 
-    fn parse_input<'a>(
-        &'a self,
-        input: &'a str,
-    ) -> impl Iterator<Item = Result<Entry, BadInput>> + 'a {
-        LayoutParser {
-            at_start: true,
-            whitespace: &self.whitespace,
-            input,
+    fn parse_full_input(&self, input: &str) -> Result<Vec<Entry>, BadInput> {
+        fn get_line_for_error_message(text: &str, remaining_chars: usize) -> String {
+            let char_index = text.chars().count().saturating_sub(remaining_chars + 1);
+            let line_index = text
+                .chars()
+                .take(char_index)
+                .filter(|ch| *ch == '\n')
+                .count();
+            text.lines().nth(line_index).unwrap_or("[empty]").to_owned()
+        }
+
+        let mut layout_iter = self.layout.chars().peekable();
+        let mut input_iter = input.chars().peekable();
+        match parse_layout(&mut layout_iter, &mut input_iter, 0) {
+            Some(entries) => Ok(entries),
+            None => Err(BadInput::DoesNotMatchLayout(
+                get_line_for_error_message(&self.layout, layout_iter.count()),
+                get_line_for_error_message(input, input_iter.count()),
+            )),
         }
     }
-}
 
-#[derive(Debug, Default)]
-struct LayoutParser<'a> {
-    at_start: bool,
-    whitespace: &'a [String],
-    input: &'a str,
-}
-
-impl Iterator for LayoutParser<'_> {
-    type Item = Result<Entry, BadInput>;
-
-    fn next(&mut self) -> Option<Result<Entry, BadInput>> {
-        // If we're at the end return None, or error if there's stuff left over.
-        if self.whitespace.is_empty() {
-            if !self.input.is_empty() {
-                let line = self.input.lines().next().unwrap().to_string();
-                return Some(Err(BadInput::DoesNotMatchLayout(
-                    line,
-                    "too much input".to_owned(),
-                )));
+    fn parse_sub_input(&self, input: &str) -> Result<Vec<Vec<Entry>>, BadInput> {
+        let mut results = Vec::new();
+        for offset in 0..self.layout.len() {
+            let mut layout_iter = self.layout.chars().peekable();
+            let mut input_iter = input.chars().peekable();
+            if let Some(entries) = parse_layout(&mut layout_iter, &mut input_iter, offset) {
+                results.push(entries);
             }
-            return None;
         }
-
-        // If we're at the beginning, consume the initial whitespace
-        if self.at_start {
-            let (whitespace, rest) = self.whitespace.split_first().unwrap();
-            self.whitespace = rest;
-            if !self.input.starts_with(whitespace) {
-                let line = self.input.lines().next().unwrap_or("[empty]").to_string();
-                return Some(Err(BadInput::DoesNotMatchLayout(
-                    line,
-                    format!("expected '{}'", whitespace),
-                )));
-            }
-            self.input = &self.input[whitespace.len()..];
-            self.at_start = false;
-        }
-
-        // Consume word and subsequent whitespace
-        let (whitespace, rest) = self.whitespace.split_first().unwrap();
-        self.whitespace = rest;
-        let word = if whitespace.is_empty() {
-            let word = &self.input[0..1];
-            self.input = &self.input[1..];
-            word
-        } else if let Some(offset) = self.input.find(whitespace) {
-            let word = &self.input[0..offset];
-            self.input = &self.input[offset + whitespace.len()..];
-            word
+        if results.is_empty() {
+            Err(BadInput::NoMatches(input.to_owned()))
         } else {
-            let line = self.input.lines().next().unwrap_or("").to_string();
-            return Some(Err(BadInput::DoesNotMatchLayout(
-                line,
-                format!("expected {:?}", whitespace),
-            )));
-        };
-
-        // Parse Entry
-        Some(Entry::from_str(word))
+            Ok(results)
+        }
     }
+}
+
+#[allow(clippy::while_let_on_iterator)] // Clippy's wrong, for loop would take ownership
+fn parse_layout(
+    layout: &mut Peekable<impl Iterator<Item = char>>,
+    input: &mut Peekable<impl Iterator<Item = char>>,
+    initial_offset: usize,
+) -> Option<Vec<Entry>> {
+    let mut entries = Vec::new();
+
+    // 1. Skip past `initial_offset` characters, and record the final indentation (column).
+    let indent = {
+        let mut ind = 0;
+        for _ in 0..initial_offset {
+            if let Some(ch) = layout.next() {
+                if ch == '\n' {
+                    ind = 0;
+                } else if ch == '*' {
+                    entries.push(Entry(None));
+                    ind += 1;
+                } else {
+                    ind += 1;
+                }
+            } else {
+                panic!("Bad call to parse_layout: index OOB");
+            }
+        }
+        ind
+    };
+
+    // 2. Match the input against the layout.
+    while let Some(input_ch) = input.peek().copied() {
+        if input_ch == '\n' {
+            // Consume until next newline, in both layout and input
+            input.next();
+            while let Some(ch) = layout.next() {
+                if ch == '*' {
+                    entries.push(Entry(None));
+                } else if ch == '\n' {
+                    break;
+                }
+            }
+            // Skip indentation in the layout
+            for _ in 0..indent {
+                if layout.peek().copied() == Some('\n') {
+                    break;
+                }
+                let ch = layout.next();
+                if ch == Some('*') {
+                    entries.push(Entry(None));
+                }
+            }
+            continue;
+        }
+
+        match layout.next() {
+            Some('*') => {
+                let entry = Entry::parse(input)?;
+                entries.push(entry);
+            }
+            Some(ch) => {
+                if input.next() != Some(ch) {
+                    return None;
+                }
+            }
+            None => {
+                if input.next().is_none() {
+                    return Some(entries);
+                } else {
+                    return None;
+                }
+            }
+        }
+    }
+
+    // 3. Add any remaining entries.
+    for ch in layout {
+        if ch == '*' {
+            entries.push(Entry(None));
+        }
+    }
+
+    Some(entries)
 }
 
 /************************
@@ -184,7 +241,7 @@ impl State for Data {
 
     fn new(layout: &Arc<Layout>) -> Data {
         Data {
-            entries: vec![Entry(None); layout.whitespace.len() - 1],
+            entries: vec![Entry(None); layout.num_entries],
             layout: layout.clone(),
         }
     }
@@ -193,7 +250,7 @@ impl State for Data {
 impl Data {
     fn new(input: &str, layout: Arc<Layout>) -> Result<Data, BadInput> {
         Ok(Data {
-            entries: layout.parse_input(input).collect::<Result<Vec<_>, _>>()?,
+            entries: layout.parse_full_input(input)?,
             layout,
         })
     }
@@ -208,14 +265,15 @@ impl fmt::Display for Data {
             .collect::<Vec<_>>();
         let max_len = entries.iter().map(|s| s.len()).max().unwrap_or(1);
 
-        write!(f, "{}", self.layout.whitespace[0])?;
+        let mut whitespace = self.layout.layout.split('*');
+        write!(f, "{}", whitespace.next().unwrap())?;
         for (i, entry) in self.entries.iter().enumerate() {
             write!(
                 f,
                 "{:>padding$}{}{}",
                 "",
                 entry,
-                self.layout.whitespace[i + 1],
+                whitespace.next().unwrap(),
                 padding = max_len - entries[i].len(),
             )?;
         }
@@ -229,19 +287,21 @@ impl fmt::Display for Data {
 
 #[derive(Debug)]
 enum BadInput {
-    BadEntry(String),
-    DoesNotMatchLayout(String, String),
     BadRangeEntry(i32),
+    DoesNotMatchLayout(String, String),
+    NoMatches(String),
 }
 
 impl fmt::Display for BadInput {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BadInput::BadEntry(word) => write!(f, "Bad entry '{}'", word),
-            BadInput::DoesNotMatchLayout(bad_part, message) => {
-                write!(f, "Bad input at '{}' ({})", bad_part, message)
+            BadInput::DoesNotMatchLayout(input, layout) => {
+                write!(f, "Input '{}' does not match layout '{}'.", input, layout)
             }
             BadInput::BadRangeEntry(entry) => write!(f, "Bad range entry {}", entry),
+            BadInput::NoMatches(input) => {
+                write!(f, "Pattern does not match the layout:\n{}", input)
+            }
         }
     }
 }
@@ -341,29 +401,30 @@ impl PuzzleDefinition {
         for rule_set in &self.rule_sets {
             let mut var_lists = Vec::new();
             for data in &rule_set.datas {
-                let mut key_to_var_list = HashMap::new();
-                let data = Data::new(data, layout.clone())?;
-                for (i, entry) in data.entries.iter().enumerate() {
-                    if let Entry(Some(entry)) = entry {
-                        let key = if *entry >= 0 {
-                            // entry was a number
-                            None
-                        } else {
-                            // entry was a letter, or '*'
-                            Some(entry)
-                        };
-                        key_to_var_list
-                            .entry(key)
-                            .or_insert_with(Vec::new)
-                            .push((i, entry))
+                for entries in layout.parse_sub_input(data)? {
+                    let mut key_to_var_list = HashMap::new();
+                    for (i, entry) in entries.iter().enumerate() {
+                        if let Entry(Some(entry)) = entry {
+                            let key = if *entry >= 0 {
+                                // entry was a number
+                                None
+                            } else {
+                                // entry was a letter, or '*'
+                                Some(entry)
+                            };
+                            key_to_var_list
+                                .entry(key)
+                                .or_insert_with(Vec::new)
+                                .push((i, entry))
+                        }
                     }
-                }
-                for (key, mut var_list) in key_to_var_list {
-                    if key.is_none() {
-                        var_list.sort_by_key(|(_, entry)| *entry);
+                    for (key, mut var_list) in key_to_var_list {
+                        if key.is_none() {
+                            var_list.sort_by_key(|(_, entry)| *entry);
+                        }
+                        let var_list = var_list.into_iter().map(|(var, _)| var).collect::<Vec<_>>();
+                        var_lists.push(var_list)
                     }
-                    let var_list = var_list.into_iter().map(|(var, _)| var).collect::<Vec<_>>();
-                    var_lists.push(var_list)
                 }
             }
             for var_list in var_lists {
@@ -447,7 +508,7 @@ fn make_puzzle_parser() -> Result<impl CompiledParser<PuzzleDefinition>, Grammar
     // An entry (i32) is either a letter or a numeral
     let letter_p = g
         .regex("letter", "[a-zA-Z]")?
-        .span(|span| read_letter(span.substr).unwrap());
+        .span(|span| read_letter(span.substr.chars().next().unwrap()).unwrap());
     let numeral_p = g
         .regex("numeral", "[0-9]+")?
         .try_span(|span| i32::from_str(span.substr));

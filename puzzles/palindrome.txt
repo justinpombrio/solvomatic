@@ -1,12 +1,12 @@
 # Five letter palindromes
 
 layout
-|  *****
+|  * * * * *
 
 range a..z
-|  *****
+|  * * * * *
 
 rule word puzzles/word-list-cel_2-15.txt
-|  12345
+|  1 2 3 4 5
 
-|  54321
+|  5 4 3 2 1
